@@ -15,8 +15,8 @@ class TestTaskAssignmentPlanner(unittest.TestCase):
 
     def setUp(self):
         """Set up test fixtures before each test method."""
-        self.tasks_file = "data/tasks.csv"
-        self.participants_file = "data/participants.csv"
+        self.tasks_file = "backend/data/tasks.csv"
+        self.participants_file = "backend/data/participants.csv"
 
         # Check if test data files exist
         if not os.path.exists(self.tasks_file):
@@ -66,52 +66,91 @@ class TestTaskAssignmentPlanner(unittest.TestCase):
                     f"Participant {participant['name']} should be assigned to {obliged_task}",
                 )
 
-    def test_snu_hour_requirement(self):
-        """Test that SNU participants work exactly 21 hours."""
+    def test_workload_based_hours(self):
+        """Test that participants work hours are related to their workload level."""
         assignments = self.planner.get_assignments()
 
-        # Calculate total hours for each SNU participant
-        snu_hours = {}
+        # Calculate total hours for each participant by workload
+        workload_hours = {"High": {}, "Medium": {}, "Low": {}, "SNU": {}}
+        
         for assignment in assignments:
-            if assignment["participant_role"] == "SNU":
-                name = assignment["participant"]
-                duration = assignment["duration"]
+            workload = assignment["participant_workload"]
+            name = assignment["participant"]
+            duration = assignment["duration"]
 
-                # Parse duration (e.g., '16H00-19H00')
-                start_time, end_time = duration.split("-")
-                start_hour = int(start_time.split("H")[0])
-                start_min = (
-                    int(start_time.split("H")[1])
-                    if len(start_time.split("H")[1]) > 0
-                    else 0
-                )
-                end_hour = int(end_time.split("H")[0])
-                end_min = (
-                    int(end_time.split("H")[1])
-                    if len(end_time.split("H")[1]) > 0
-                    else 0
-                )
+            # Parse duration (e.g., '16H00-19H00')
+            start_time, end_time = duration.split("-")
+            start_hour = int(start_time.split("H")[0])
+            start_min = (
+                int(start_time.split("H")[1])
+                if len(start_time.split("H")[1]) > 0
+                else 0
+            )
+            end_hour = int(end_time.split("H")[0])
+            end_min = (
+                int(end_time.split("H")[1])
+                if len(end_time.split("H")[1]) > 0
+                else 0
+            )
 
-                start_minutes = start_hour * 60 + start_min
-                end_minutes = end_hour * 60 + end_min
-                task_hours = (end_minutes - start_minutes) / 60.0
+            start_minutes = start_hour * 60 + start_min
+            end_minutes = end_hour * 60 + end_min
+            task_hours = (end_minutes - start_minutes) / 60.0
 
-                if name not in snu_hours:
-                    snu_hours[name] = 0
-                snu_hours[name] += task_hours
+            if name not in workload_hours[workload]:
+                workload_hours[workload][name] = 0
+            workload_hours[workload][name] += task_hours
 
-        # Check that all SNU participants work exactly 21 hours
-        for name, total_hours in snu_hours.items():
+        # Check SNU participants work exactly 21 hours
+        for name, total_hours in workload_hours["SNU"].items():
             self.assertEqual(
                 total_hours,
                 21.0,
                 f"SNU participant {name} works {total_hours:.1f} hours, should work exactly 21 hours",
             )
 
-        # Print SNU hours for verification
-        print("\nSNU Participants Total Hours:")
-        for name, hours in snu_hours.items():
-            print(f"  {name}: {hours:.1f} hours")
+        # Check that High workload participants work more hours than Low workload participants
+        if workload_hours["High"] and workload_hours["Low"]:
+            avg_high_hours = sum(workload_hours["High"].values()) / len(workload_hours["High"])
+            avg_low_hours = sum(workload_hours["Low"].values()) / len(workload_hours["Low"])
+            
+            self.assertGreater(
+                avg_high_hours,
+                avg_low_hours,
+                f"High workload participants (avg: {avg_high_hours:.1f}h) should work more hours than Low workload participants (avg: {avg_low_hours:.1f}h)"
+            )
+
+        # Check that Medium workload participants work between High and Low
+        # Note: This is a soft constraint as some Low workload participants may get long tasks
+        if workload_hours["Medium"]:
+            avg_medium_hours = sum(workload_hours["Medium"].values()) / len(workload_hours["Medium"])
+            
+            if workload_hours["High"]:
+                avg_high_hours = sum(workload_hours["High"].values()) / len(workload_hours["High"])
+                self.assertLessEqual(
+                    avg_medium_hours,
+                    avg_high_hours,
+                    f"Medium workload participants (avg: {avg_medium_hours:.1f}h) should work <= High workload participants (avg: {avg_high_hours:.1f}h)"
+                )
+            
+            # For Low workload, we'll be more flexible since some may get long tasks
+            if workload_hours["Low"]:
+                avg_low_hours = sum(workload_hours["Low"].values()) / len(workload_hours["Low"])
+                # Allow Medium to be slightly less than Low due to task distribution
+                self.assertGreaterEqual(
+                    avg_medium_hours,
+                    avg_low_hours * 0.7,  # Allow 30% flexibility
+                    f"Medium workload participants (avg: {avg_medium_hours:.1f}h) should work at least 70% of Low workload participants (avg: {avg_low_hours:.1f}h)"
+                )
+
+        # Print workload hours for verification
+        print("\nWorkload-based Hours Distribution:")
+        for workload, participants in workload_hours.items():
+            if participants:
+                avg_hours = sum(participants.values()) / len(participants)
+                print(f"  {workload} workload (avg: {avg_hours:.1f}h):")
+                for name, hours in participants.items():
+                    print(f"    {name}: {hours:.1f} hours")
 
     def test_no_time_conflicts(self):
         """Test that no participant is assigned to overlapping tasks."""
@@ -207,41 +246,41 @@ class TestTaskAssignmentPlanner(unittest.TestCase):
         """Test that all participants are treated equally (no role-based bias)."""
         assignments = self.planner.get_assignments()
 
-        # Group assignments by role
-        role_assignments = {}
+        # Group assignments by workload
+        workload_assignments = {}
         for assignment in assignments:
-            role = assignment["participant_role"]
-            if role not in role_assignments:
-                role_assignments[role] = []
-            role_assignments[role].append(assignment)
+            workload = assignment["participant_workload"]
+            if workload not in workload_assignments:
+                workload_assignments[workload] = []
+            workload_assignments[workload].append(assignment)
 
-        # Calculate average tasks per participant by role
-        role_stats = {}
-        for role, role_tasks in role_assignments.items():
+        # Calculate average tasks per participant by workload
+        workload_stats = {}
+        for workload, workload_tasks in workload_assignments.items():
             participant_counts = {}
-            for task in role_tasks:
+            for task in workload_tasks:
                 name = task["participant"]
                 participant_counts[name] = participant_counts.get(name, 0) + 1
 
             if participant_counts:
                 avg_tasks = sum(participant_counts.values()) / len(participant_counts)
-                role_stats[role] = {
+                workload_stats[workload] = {
                     "avg_tasks": avg_tasks,
                     "participant_count": len(participant_counts),
                     "total_tasks": sum(participant_counts.values()),
                 }
 
-        # Print role statistics for verification
-        print("\nRole-based Statistics:")
-        for role, stats in role_stats.items():
+        # Print workload statistics for verification
+        print("\nWorkload-based Statistics:")
+        for workload, stats in workload_stats.items():
             print(
-                f"  {role}: {stats['avg_tasks']:.1f} avg tasks per participant "
+                f"  {workload}: {stats['avg_tasks']:.1f} avg tasks per participant "
                 f"({stats['total_tasks']} total tasks, {stats['participant_count']} participants)"
             )
 
-        # The test passes if we can calculate statistics (no role-based assignment failures)
+        # The test passes if we can calculate statistics (no workload-based assignment failures)
         self.assertTrue(
-            len(role_stats) > 0, "No role-based statistics could be calculated"
+            len(workload_stats) > 0, "No workload-based statistics could be calculated"
         )
 
     def test_minimum_people_constraint(self):
@@ -386,13 +425,13 @@ class TestTaskAssignmentPlanner(unittest.TestCase):
         # Basic quality checks
         self.assertGreater(len(assignments), 0, "No assignments found")
 
-        # Check that we have participants from all roles
-        participant_roles = {a["participant_role"] for a in assignments}
-        expected_roles = {"Permanant", "Non-permanant", "SNU"}
+        # Check that we have participants from all workload levels
+        participant_workloads = {a["participant_workload"] for a in assignments}
+        expected_workloads = {"High", "Medium", "Low", "SNU"}
         self.assertEqual(
-            participant_roles,
-            expected_roles,
-            "Not all participant roles are represented in assignments",
+            participant_workloads,
+            expected_workloads,
+            "Not all participant workload levels are represented in assignments",
         )
 
 

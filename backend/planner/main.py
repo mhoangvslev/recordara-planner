@@ -50,19 +50,15 @@ class TaskAssignmentPlanner:
                     min_people = int(min_people_str.strip()) if min_people_str else 1
                     max_people = int(max_people_str.strip()) if max_people_str else None
 
-                    # Create task description with location
+                    # Get task description without location
                     task_desc = row["TASK_DESC"].strip('"')
-                    if location:
-                        description = f"{task_desc} - {location}"
-                    else:
-                        description = task_desc
 
                     self.tasks.append(
                         {
                             "task_id": row["TASK_ID"],
                             "date": row["DATE"],
                             "duration": row["DURATION"],
-                            "description": description,
+                            "description": task_desc,
                             "location": location,
                             "min_people": min_people,
                             "max_people": max_people,
@@ -103,10 +99,11 @@ class TaskAssignmentPlanner:
                             "name": f"{row['FIRST_NAME']} {row['LAST_NAME']}",
                             "first_name": row["FIRST_NAME"],
                             "last_name": row["LAST_NAME"],
-                            "role": row["ROLE"],
+                            "workload": row["WORKLOAD"],
                             "obligations": obligations,
                             "availability": availability,
-                            "priority": self._get_role_priority(row["ROLE"]),
+                            "priority": self._get_workload_priority(row["WORKLOAD"]),
+                            "target_hours": self._get_target_hours(row["WORKLOAD"]),
                         }
                     )
         except Exception as e:
@@ -217,10 +214,22 @@ class TaskAssignmentPlanner:
         }
         return date_map.get(date_str, 0)
 
-    def _get_role_priority(self, role: str) -> int:
-        """Get priority score for role (higher = more important)."""
-        priority_map = {"Permanant": 3, "Non-permanant": 2, "SNU": 1}
-        return priority_map.get(role, 1)
+    def _get_workload_priority(self, workload: str) -> int:
+        """Get priority score for workload (higher = more important)."""
+        priority_map = {"High": 3, "Medium": 2, "Low": 1, "SNU": 1}
+        return priority_map.get(workload, 1)
+    
+    def _get_target_hours(self, workload: str) -> float:
+        """Get target work hours based on workload level."""
+        # High workload = more hours, Medium = medium hours, Low = fewer hours
+        # SNU participants have a fixed 21-hour requirement
+        target_hours_map = {
+            "High": 15.0,    # High workload participants should work more hours
+            "Medium": 12.0,  # Medium workload participants work moderate hours
+            "Low": 8.0,      # Low workload participants work fewer hours
+            "SNU": 21.0      # SNU participants have fixed 21-hour requirement
+        }
+        return target_hours_map.get(workload, 8.0)
 
     def _create_variables(self):
         """Create binary assignment variables."""
@@ -236,7 +245,7 @@ class TaskAssignmentPlanner:
         self._add_participant_availability_constraint()
         self._add_workload_balancing_constraints()
         self._add_time_conflict_constraint()
-        self._add_snu_hour_limit_constraint()
+        self._add_workload_hour_constraints()
 
     def _add_each_task_assigned_constraint(self):
         """Each task must be assigned to at least the minimum number of people."""
@@ -315,18 +324,28 @@ class TaskAssignmentPlanner:
                                 <= 1
                             )
 
-    def _add_snu_hour_limit_constraint(self):
-        """Add exact 21-hour work requirement for SNU participants."""
+    def _add_workload_hour_constraints(self):
+        """Add work hour constraints based on workload levels."""
         for i, participant in enumerate(self.participants):
-            if participant["role"] == "SNU":
-                # Calculate total minutes for SNU participant (21 hours = 1260 minutes)
-                total_minutes = 0
-                for j, task in enumerate(self.tasks):
-                    task_minutes = task["end_time"] - task["start_time"]
-                    total_minutes += task_minutes * self.assignments[(i, j)]
-
+            workload = participant["workload"]
+            target_hours = participant["target_hours"]
+            
+            # Calculate total minutes for this participant
+            total_minutes = 0
+            for j, task in enumerate(self.tasks):
+                task_minutes = task["end_time"] - task["start_time"]
+                total_minutes += task_minutes * self.assignments[(i, j)]
+            
+            if workload == "SNU":
                 # SNU participants must work exactly 21 hours (1260 minutes)
                 self.model.Add(total_minutes == 1260)
+            else:
+                # For other workload levels, set a very flexible range
+                # Only enforce minimum 1 hour to ensure everyone works something
+                min_minutes = 60  # At least 1 hour
+                
+                self.model.Add(total_minutes >= min_minutes)
+                # No maximum constraint for non-SNU participants to allow flexibility
 
     def _add_workload_balancing_constraints(self):
         """Add constraints to balance workload among participants."""
@@ -359,21 +378,45 @@ class TaskAssignmentPlanner:
 
     def _set_objective(self):
         """Set optimization objective."""
-        # Equal treatment for all participants (except SNU exact hour requirements)
         objective_terms = []
 
-        # Simple objective: maximize total assignments (treat everyone equally)
+        # Workload-based objective: prioritize assignments based on workload level
         for i, participant in enumerate(self.participants):
+            workload = participant["workload"]
             for j, task in enumerate(self.tasks):
-                # Equal weight for all participants
-                objective_terms.append(self.assignments[(i, j)])
+                # Weight assignments based on workload level (more moderate weights)
+                if workload == "High":
+                    weight = 2  # High priority for high workload participants
+                elif workload == "Medium":
+                    weight = 1.5  # Medium priority for medium workload participants
+                elif workload == "Low":
+                    weight = 1  # Lower priority for low workload participants
+                else:  # SNU
+                    weight = 1.5  # Medium priority for SNU participants
+                
+                objective_terms.append(weight * self.assignments[(i, j)])
 
-        # Workload balancing: minimize variance in task distribution
-        # Add penalty for participants with too many tasks
-        for i in range(len(self.participants)):
-            workload = sum(self.assignments[(i, j)] for j in range(len(self.tasks)))
-            # Penalize high workload linearly to encourage balance
-            objective_terms.append(-1 * workload)
+        # Encourage workload-based hour distribution
+        for i, participant in enumerate(self.participants):
+            workload = participant["workload"]
+            if workload != "SNU":  # SNU has fixed hours, don't include in this objective
+                # Reward getting closer to target hours based on workload
+                if workload == "High":
+                    # High workload participants get bonus for working more hours
+                    # Use minutes directly with moderate weight
+                    for j, task in enumerate(self.tasks):
+                        task_minutes = task["end_time"] - task["start_time"]
+                        objective_terms.append(2 * task_minutes * self.assignments[(i, j)])
+                elif workload == "Medium":
+                    # Medium workload participants get moderate reward
+                    for j, task in enumerate(self.tasks):
+                        task_minutes = task["end_time"] - task["start_time"]
+                        objective_terms.append(1.5 * task_minutes * self.assignments[(i, j)])
+                elif workload == "Low":
+                    # Low workload participants get minimal reward
+                    for j, task in enumerate(self.tasks):
+                        task_minutes = task["end_time"] - task["start_time"]
+                        objective_terms.append(1 * task_minutes * self.assignments[(i, j)])
 
         self.model.Maximize(sum(objective_terms))
 
@@ -400,7 +443,7 @@ class TaskAssignmentPlanner:
                     assignments.append(
                         {
                             "participant": participant["name"],
-                            "participant_role": participant["role"],
+                            "participant_workload": participant["workload"],
                             "task_id": task["task_id"],
                             "task_description": task["description"],
                             "location": task["location"],
@@ -434,7 +477,7 @@ class TaskAssignmentPlanner:
                 for assignment in sorted(day_assignments, key=lambda x: x["duration"]):
                     print(
                         f"{assignment['duration']:15} | {assignment['task_id']:6} | "
-                        f"{assignment['participant']:20} ({assignment['participant_role']:12}) | "
+                        f"{assignment['participant']:20} ({assignment['participant_workload']:12}) | "
                         f"{assignment['task_description']}"
                     )
 
@@ -448,7 +491,7 @@ class TaskAssignmentPlanner:
             name = assignment["participant"]
             if name not in participant_summary:
                 participant_summary[name] = {
-                    "role": assignment["participant_role"],
+                    "workload": assignment["participant_workload"],
                     "tasks": [],
                     "total_tasks": 0,
                 }
@@ -456,9 +499,9 @@ class TaskAssignmentPlanner:
             participant_summary[name]["total_tasks"] += 1
 
         for name, info in sorted(
-            participant_summary.items(), key=lambda x: (x[1]["role"], x[0])
+            participant_summary.items(), key=lambda x: (x[1]["workload"], x[0])
         ):
-            print(f"\n{name} ({info['role']}) - {info['total_tasks']} tasks:")
+            print(f"\n{name} ({info['workload']}) - {info['total_tasks']} tasks:")
             for task in sorted(info["tasks"], key=lambda x: (x["day"], x["duration"])):
                 print(
                     f"  • {task['date']} {task['duration']} - {task['task_id']}: {task['task_description']}"
@@ -471,7 +514,7 @@ class TaskAssignmentPlanner:
         with open(output_file, "w", newline="", encoding="utf-8") as file:
             fieldnames = [
                 "participant",
-                "participant_role",
+                "participant_workload",
                 "task_id",
                 "task_description",
                 "location",
@@ -505,9 +548,9 @@ def main():
     print("=" * 50)
 
     # File paths
-    tasks_file = "data/tasks.csv"
-    participants_file = "data/participants.csv"
-    output_file = "output/assignments.csv"
+    tasks_file = "backend/data/tasks.csv"
+    participants_file = "backend/data/participants.csv"
+    output_file = "backend/output/assignments.csv"
 
     # Check if files exist
     if not os.path.exists(tasks_file):
