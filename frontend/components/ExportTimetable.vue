@@ -65,7 +65,7 @@ import { DocumentTextIcon, DocumentIcon, TableCellsIcon, ExclamationTriangleIcon
 import jsPDF from 'jspdf'
 import * as XLSX from 'xlsx'
 import JSZip from 'jszip'
-import { anyAscii } from 'any-ascii'
+import anyAscii from 'any-ascii'
 
 const props = defineProps({
     selectedParticipants: {

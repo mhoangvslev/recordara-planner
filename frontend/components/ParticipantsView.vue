@@ -56,7 +56,7 @@
                 <h3 class="font-medium text-gray-900">{{ participant.name }}</h3>
               </div>
               <div class="flex items-center gap-2 mb-1">
-                <CheckCircleIcon class="h-3 w-3 text-gray-400" />
+                <CogIcon class="h-3 w-3 text-gray-400" />
                 <p class="text-sm text-gray-500">{{ $t(`participants.workload.${participant.workload.toLowerCase()}`) }}</p>
               </div>
               <div class="flex items-center gap-2 mb-1">
@@ -168,7 +168,7 @@ import {
   UserIcon,
   ClipboardDocumentListIcon,
   ClockIcon,
-  CheckCircleIcon,
+  CogIcon,
   FunnelIcon,
   UsersIcon,
   ChartBarIcon,
