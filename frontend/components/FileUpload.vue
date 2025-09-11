@@ -76,6 +76,12 @@ const triggerFileInput = () => {
 const handleFileSelect = (event) => {
     const file = event.target.files[0]
     if (file) {
+        // Check file size (1MB limit)
+        const maxSize = 1 * 1024 * 1024 // 1MB in bytes
+        if (file.size > maxSize) {
+            error.value = 'File size must be less than 1MB'
+            return
+        }
         processFile(file)
     }
 }
@@ -88,6 +94,12 @@ const handleDrop = (event) => {
     if (files.length > 0) {
         const file = files[0]
         if (file.type === 'text/csv' || file.name.endsWith('.csv')) {
+            // Check file size (1MB limit)
+            const maxSize = 1 * 1024 * 1024 // 1MB in bytes
+            if (file.size > maxSize) {
+                error.value = 'File size must be less than 1MB'
+                return
+            }
             processFile(file)
         } else {
             error.value = 'Please select a CSV file'
@@ -110,20 +122,77 @@ const processFile = async (file) => {
     isUploading.value = true
 
     try {
-        const formData = new FormData()
-        formData.append('file', file)
-
-        const response = await fetch('/api/upload-assignments', {
-            method: 'POST',
-            body: formData
-        })
-
-        if (!response.ok) {
-            const errorData = await response.json()
-            throw new Error(errorData.message || 'Upload failed')
+        // Check file size (1MB limit)
+        const maxSize = 1 * 1024 * 1024 // 1MB in bytes
+        if (file.size > maxSize) {
+            throw new Error('File size must be less than 1MB')
         }
 
-        const data = await response.json()
+        // Read file content
+        const csvContent = await readFileContent(file)
+
+        // Parse CSV with proper handling of carriage returns and quotes
+        const lines = csvContent.trim().split('\n')
+        if (lines.length < 2) {
+            throw new Error('CSV file must contain at least a header row and one data row')
+        }
+
+        const headers = lines[0].split(',').map(h => h.trim().replace(/\r/g, ''))
+
+        // Validate required headers
+        const requiredHeaders = ['participant', 'task_id', 'task_description', 'date', 'duration']
+        const missingHeaders = requiredHeaders.filter(header => !headers.includes(header))
+
+        if (missingHeaders.length > 0) {
+            throw new Error(`Missing required headers: ${missingHeaders.join(', ')}`)
+        }
+
+        const assignments = lines.slice(1).map((line, index) => {
+            // Handle quoted values that might contain commas
+            const values = []
+            let current = ''
+            let inQuotes = false
+
+            for (let i = 0; i < line.length; i++) {
+                const char = line[i]
+                if (char === '"') {
+                    inQuotes = !inQuotes
+                } else if (char === ',' && !inQuotes) {
+                    values.push(current.trim().replace(/\r/g, ''))
+                    current = ''
+                } else {
+                    current += char
+                }
+            }
+            values.push(current.trim().replace(/\r/g, ''))
+
+            const assignment = {}
+            headers.forEach((header, headerIndex) => {
+                let value = values[headerIndex] || ''
+
+                // Remove quotes if present
+                if (value.startsWith('"') && value.endsWith('"')) {
+                    value = value.slice(1, -1)
+                }
+
+                assignment[header] = value
+            })
+
+            return assignment
+        }).filter(assignment => assignment.participant && assignment.participant.trim() !== '') // Filter out empty rows
+
+        if (assignments.length === 0) {
+            throw new Error('No valid assignment data found in CSV file')
+        }
+
+        const data = {
+            success: true,
+            assignments,
+            fileName: file.name,
+            fileSize: file.size,
+            recordCount: assignments.length
+        }
+
         uploadedFile.value = file
         emit('file-uploaded', data)
 
@@ -133,6 +202,15 @@ const processFile = async (file) => {
     } finally {
         isUploading.value = false
     }
+}
+
+const readFileContent = (file) => {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onload = (e) => resolve(e.target.result)
+        reader.onerror = (e) => reject(new Error('Failed to read file'))
+        reader.readAsText(file)
+    })
 }
 
 const clearFile = () => {

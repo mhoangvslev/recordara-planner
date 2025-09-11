@@ -2,6 +2,7 @@
     "app": {
         "title": "Event Planner Visualization",
         "assignmentsLoaded": "{count} assignments loaded",
+        "noAssignments": "No assignments loaded",
         "dataFromFile": "Data loaded from: {fileName}",
         "dataFromDefault": "Data loaded from backend",
         "recordCount": "{count} records",

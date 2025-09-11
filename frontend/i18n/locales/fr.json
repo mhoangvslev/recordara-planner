@@ -2,6 +2,7 @@
     "app": {
         "title": "Visualisation du Planificateur d'Événements",
         "assignmentsLoaded": "{count} affectations chargées",
+        "noAssignments": "Aucune affectation chargée",
         "dataFromFile": "Données chargées depuis : {fileName}",
         "dataFromDefault": "Données chargées depuis le backend",
         "recordCount": "{count} enregistrements",
@@ -21,7 +22,8 @@
             "filter": "Filtrer par Charge de Travail",
             "low": "Faible",
             "medium": "Moyenne",
-            "high": "Élevée"
+            "high": "Élevée",
+            "snu": "SNU"
         },
         "card": {
             "workload": "Charge de Travail",

@@ -6,7 +6,7 @@
           <h1 class="text-2xl font-bold text-gray-900">{{ $t('app.title') }}</h1>
           <div class="flex items-center gap-4">
             <div class="text-sm text-gray-500">
-              {{ $t('app.assignmentsLoaded', { count: assignments.length }) }}
+              {{ hasAssignments ? $t('app.assignmentsLoaded', { count: assignments.length }) : $t('app.noAssignments') }}
             </div>
             <LanguageSwitcher />
           </div>
@@ -104,16 +104,7 @@ const uploadedFileName = ref('')
 
 const hasAssignments = computed(() => assignments.value.length > 0)
 
-const loadDefaultData = async () => {
-  try {
-    const response = await fetch('/api/assignments')
-    const data = await response.json()
-    assignments.value = data
-    uploadedFileName.value = '' // Clear uploaded file name for default data
-  } catch (error) {
-    console.error('Error loading assignments:', error)
-  }
-}
+// No default data loading - user must upload a CSV file
 
 const handleFileUploaded = (data) => {
   assignments.value = data.assignments
@@ -130,10 +121,7 @@ const resetData = () => {
   uploadedFileName.value = ''
 }
 
-onMounted(async () => {
-  // Only load default data if no assignments are present
-  if (assignments.value.length === 0) {
-    await loadDefaultData()
-  }
+onMounted(() => {
+  // No default data loading - user must upload a CSV file
 })
 </script>
