@@ -3,7 +3,7 @@
         "title": "Visualisation du Planificateur d'Événements",
         "assignmentsLoaded": "{count} affectations chargées",
         "dataFromFile": "Données chargées depuis : {fileName}",
-        "dataFromDefault": "Données chargées depuis assignments.csv par défaut",
+        "dataFromDefault": "Données chargées depuis le backend",
         "recordCount": "{count} enregistrements",
         "uploadNewFile": "Télécharger un Nouveau Fichier"
     },

@@ -3,7 +3,7 @@
         "title": "Event Planner Visualization",
         "assignmentsLoaded": "{count} assignments loaded",
         "dataFromFile": "Data loaded from: {fileName}",
-        "dataFromDefault": "Data loaded from default assignments.csv",
+        "dataFromDefault": "Data loaded from backend",
         "recordCount": "{count} records",
         "uploadNewFile": "Upload New File"
     },
