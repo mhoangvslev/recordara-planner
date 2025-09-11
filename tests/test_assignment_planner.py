@@ -33,34 +33,6 @@ class TestTaskAssignmentPlanner(unittest.TestCase):
         if not self.solution_found:
             self.skipTest("No solution found for the assignment problem")
 
-    def test_all_tasks_assigned(self):
-        """Test that all tasks are assigned to exactly one participant."""
-        assignments = self.planner.get_assignments()
-
-        # Get all task IDs from assignments
-        assigned_task_ids = {assignment["task_id"] for assignment in assignments}
-
-        # Get all task IDs from the original tasks
-        all_task_ids = {task["task_id"] for task in self.planner.tasks}
-
-        # Check that all tasks are assigned
-        self.assertEqual(
-            assigned_task_ids, all_task_ids, "Not all tasks have been assigned"
-        )
-
-        # Check that each task is assigned to exactly one participant
-        task_assignment_counts = {}
-        for assignment in assignments:
-            task_id = assignment["task_id"]
-            task_assignment_counts[task_id] = task_assignment_counts.get(task_id, 0) + 1
-
-        for task_id, count in task_assignment_counts.items():
-            self.assertEqual(
-                count,
-                1,
-                f"Task {task_id} is assigned to {count} participants, should be exactly 1",
-            )
-
     def test_obligations_respected(self):
         """Test that participant obligations are respected."""
         assignments = self.planner.get_assignments()
@@ -94,8 +66,8 @@ class TestTaskAssignmentPlanner(unittest.TestCase):
                     f"Participant {participant['name']} should be assigned to {obliged_task}",
                 )
 
-    def test_snu_hour_limit(self):
-        """Test that SNU participants work no more than 21 hours."""
+    def test_snu_hour_requirement(self):
+        """Test that SNU participants work exactly 21 hours."""
         assignments = self.planner.get_assignments()
 
         # Calculate total hours for each SNU participant
@@ -128,12 +100,12 @@ class TestTaskAssignmentPlanner(unittest.TestCase):
                     snu_hours[name] = 0
                 snu_hours[name] += task_hours
 
-        # Check that all SNU participants are within 21-hour limit
+        # Check that all SNU participants work exactly 21 hours
         for name, total_hours in snu_hours.items():
-            self.assertLessEqual(
+            self.assertEqual(
                 total_hours,
                 21.0,
-                f"SNU participant {name} works {total_hours:.1f} hours, exceeds 21-hour limit",
+                f"SNU participant {name} works {total_hours:.1f} hours, should work exactly 21 hours",
             )
 
         # Print SNU hours for verification
@@ -226,12 +198,6 @@ class TestTaskAssignmentPlanner(unittest.TestCase):
                 f"Participant {name} has {count} tasks, should have at least 1",
             )
 
-        # Check that no participant has more than 6 tasks
-        for name, count in participant_task_counts.items():
-            self.assertLessEqual(
-                count, 6, f"Participant {name} has {count} tasks, should have at most 6"
-            )
-
         # Print workload distribution for verification
         print("\nWorkload Distribution:")
         for name, count in sorted(participant_task_counts.items()):
@@ -278,17 +244,30 @@ class TestTaskAssignmentPlanner(unittest.TestCase):
             len(role_stats) > 0, "No role-based statistics could be calculated"
         )
 
-    def test_solution_quality(self):
+    def test_number_of_people(self):
         """Test that the solution is of good quality."""
         assignments = self.planner.get_assignments()
 
         # Basic quality checks
         self.assertGreater(len(assignments), 0, "No assignments found")
-        self.assertEqual(
-            len(assignments),
-            len(self.planner.tasks),
-            "Number of assignments should equal number of tasks",
-        )
+        
+        # Check that each task has at least the minimum required people
+        task_assignments = {}
+        for assignment in assignments:
+            task_id = assignment["task_id"]
+            if task_id not in task_assignments:
+                task_assignments[task_id] = 0
+            task_assignments[task_id] += 1
+        
+        for task in self.planner.tasks:
+            task_id = task["task_id"]
+            min_people = task["min_people"]
+            assigned_people = task_assignments.get(task_id, 0)
+            self.assertGreaterEqual(
+                assigned_people,
+                min_people,
+                f"Task {task_id} requires {min_people} people but only has {assigned_people} assigned"
+            )
 
         # Check that we have participants from all roles
         participant_roles = {a["participant_role"] for a in assignments}

@@ -18,6 +18,10 @@ class TaskAssignmentPlanner:
         self.participants = []
         self.model = cp_model.CpModel()
         self.solver = cp_model.CpSolver()
+        # Set solver parameters for deterministic results
+        self.solver.parameters.random_seed = 42
+        self.solver.parameters.cp_model_presolve = True
+        self.solver.parameters.cp_model_probing_level = 2
 
         # Load data
         self._load_tasks()
@@ -39,12 +43,26 @@ class TaskAssignmentPlanner:
             with open(self.tasks_file, "r", encoding="utf-8-sig") as file:
                 reader = csv.DictReader(file)
                 for row in reader:
+                    # Get location and minimum number of people
+                    location = row.get("LOCATION")
+                    min_people_str = row.get("MINIMUM_NUMBER_OF_PEOPLE", "1")
+                    min_people = int(min_people_str.strip()) if min_people_str else 1
+
+                    # Create task description with location
+                    task_desc = row["TASK_DESC"].strip('"')
+                    if location:
+                        description = f"{task_desc} - {location}"
+                    else:
+                        description = task_desc
+
                     self.tasks.append(
                         {
                             "task_id": row["TASK_ID"],
                             "date": row["DATE"],
                             "duration": row["DURATION"],
-                            "description": row["TASK_DESC"].strip('"'),
+                            "description": description,
+                            "location": location,
+                            "min_people": min_people,
                             "start_time": self._parse_time(
                                 row["DURATION"].split("-")[0]
                             ),
@@ -68,6 +86,15 @@ class TaskAssignmentPlanner:
                             c.strip() for c in row["OBLIGED_EVENT_IDS"].split(",")
                         ]
 
+                    # Parse availability for each day
+                    availability = {
+                        "friday": self._parse_availability(row.get("AVAIL_FRIDAY", "")),
+                        "saturday": self._parse_availability(
+                            row.get("AVAIL_SATURDAY", "")
+                        ),
+                        "sunday": self._parse_availability(row.get("AVAIL_SUNDAY", "")),
+                    }
+
                     self.participants.append(
                         {
                             "name": f"{row['FIRST_NAME']} {row['LAST_NAME']}",
@@ -75,6 +102,7 @@ class TaskAssignmentPlanner:
                             "last_name": row["LAST_NAME"],
                             "role": row["ROLE"],
                             "obligations": obligations,
+                            "availability": availability,
                             "priority": self._get_role_priority(row["ROLE"]),
                         }
                     )
@@ -85,17 +113,85 @@ class TaskAssignmentPlanner:
     def _parse_time(self, time_str: str) -> int:
         """Parse time string to minutes from midnight."""
         time_str = time_str.strip()
-        if "H" in time_str:
-            hour = int(time_str.split("H")[0])
-            minute = (
-                int(time_str.split("H")[1]) if len(time_str.split("H")[1]) > 0 else 0
+        if "H" in time_str.upper():
+            # Handle formats like "21H30" or "21h30"
+            hour = int(time_str.split("H")[0].split("h")[0])
+            minute_part = (
+                time_str.split("H")[1] if "H" in time_str else time_str.split("h")[1]
             )
+            minute = int(minute_part) if len(minute_part) > 0 else 0
         else:
             # Handle format like "19:30"
             parts = time_str.split(":")
             hour = int(parts[0])
             minute = int(parts[1])
         return hour * 60 + minute
+
+    def _parse_availability(self, availability_str: str) -> List[Dict]:
+        """Parse availability string into list of time ranges.
+
+        Args:
+            availability_str: String like "16:00-19:00,19:30-21:00" or empty string
+
+        Returns:
+            List of dictionaries with 'start' and 'end' times in minutes from midnight
+        """
+        if not availability_str or availability_str.strip() == "":
+            return []
+
+        time_ranges = []
+        # Split by comma to get individual time ranges
+        ranges = [r.strip() for r in availability_str.split(",")]
+
+        for range_str in ranges:
+            if not range_str:
+                continue
+            # Split by dash to get start and end times
+            if "-" in range_str:
+                start_str, end_str = range_str.split("-", 1)
+                start_time = self._parse_time(start_str.strip())
+                end_time = self._parse_time(end_str.strip())
+                time_ranges.append({"start": start_time, "end": end_time})
+
+        return time_ranges
+
+    def _is_participant_available_for_task(self, participant: Dict, task: Dict) -> bool:
+        """Check if a participant is available for a specific task.
+
+        Args:
+            participant: Participant dictionary with availability info
+            task: Task dictionary with day and time info
+
+        Returns:
+            True if participant is available for the task, False otherwise
+        """
+        # Get the day name for the task
+        day_map = {0: "friday", 1: "saturday", 2: "sunday"}
+        day_name = day_map.get(task["day"])
+
+        if not day_name:
+            return False
+
+        # Get participant's availability for this day
+        day_availability = participant["availability"].get(day_name, [])
+
+        # If no availability specified for this day, participant is not available
+        if not day_availability:
+            return False
+
+        # Check if task time overlaps with any of participant's available time ranges
+        task_start = task["start_time"]
+        task_end = task["end_time"]
+
+        for avail_range in day_availability:
+            avail_start = avail_range["start"]
+            avail_end = avail_range["end"]
+
+            # Check if task time is completely within this availability range
+            if avail_start <= task_start and task_end <= avail_end:
+                return True
+
+        return False
 
     def _get_task_duration_hours(self, task: Dict) -> float:
         """Get task duration in hours."""
@@ -127,39 +223,74 @@ class TaskAssignmentPlanner:
         """Add all constraints to the model."""
         self._add_each_task_assigned_constraint()
         self._add_participant_availability_constraint()
-        self._add_time_conflict_constraint()
         self._add_snu_hour_limit_constraint()
         self._add_workload_balancing_constraints()
+        self._add_time_conflict_constraint()
 
     def _add_each_task_assigned_constraint(self):
-        """Each task must be assigned to exactly one participant."""
+        """Each task must be assigned to at least the minimum number of people."""
         for j, task in enumerate(self.tasks):
+            min_people = task["min_people"]
             self.model.Add(
                 sum(self.assignments[(i, j)] for i in range(len(self.participants)))
-                == 1
+                >= min_people
             )
 
     def _add_participant_availability_constraint(self):
-        """Participants must be assigned to tasks they're obliged to attend."""
+        """Participants must be assigned to tasks they're obliged to attend and
+        can only be assigned to tasks when they are available."""
         for i, participant in enumerate(self.participants):
             for j, task in enumerate(self.tasks):
+                # Check if participant is obliged to attend this task
                 if task["task_id"] in participant["obligations"]:
                     # Participant MUST be assigned to this task
                     self.model.Add(self.assignments[(i, j)] == 1)
+                else:
+                    # For non-obligation tasks, check availability
+                    if not self._is_participant_available_for_task(participant, task):
+                        # Participant is not available for this task - cannot be assigned
+                        self.model.Add(self.assignments[(i, j)] == 0)
 
     def _add_time_conflict_constraint(self):
-        """Participants cannot be assigned to overlapping tasks."""
+        """Participants cannot be assigned to overlapping tasks, except for obligations."""
         for i in range(len(self.participants)):
+            participant = self.participants[i]
             for j1, task1 in enumerate(self.tasks):
                 for j2, task2 in enumerate(self.tasks):
                     if j1 != j2 and self._tasks_overlap(task1, task2):
-                        # Cannot be assigned to both tasks
-                        self.model.Add(
-                            self.assignments[(i, j1)] + self.assignments[(i, j2)] <= 1
+                        # Check if either task is an obligation for this participant
+                        task1_is_obligation = (
+                            task1["task_id"] in participant["obligations"]
+                        )
+                        task2_is_obligation = (
+                            task2["task_id"] in participant["obligations"]
                         )
 
+                        # If both tasks are obligations, we have a problem - this should not happen
+                        if task1_is_obligation and task2_is_obligation:
+                            print(
+                                f"WARNING: Participant {participant['name']} has overlapping obligations: {task1['task_id']} and {task2['task_id']}"
+                            )
+                            # In this case, we'll allow the assignment but it's not ideal
+                            continue
+
+                        # If one task is an obligation, the participant must be assigned to it
+                        # and cannot be assigned to the conflicting non-obligation task
+                        if task1_is_obligation and not task2_is_obligation:
+                            # task1 is obligation, task2 is not - prevent assignment to task2
+                            self.model.Add(self.assignments[(i, j2)] == 0)
+                        elif task2_is_obligation and not task1_is_obligation:
+                            # task2 is obligation, task1 is not - prevent assignment to task1
+                            self.model.Add(self.assignments[(i, j1)] == 0)
+                        else:
+                            # Neither task is an obligation - normal time conflict constraint
+                            self.model.Add(
+                                self.assignments[(i, j1)] + self.assignments[(i, j2)]
+                                <= 1
+                            )
+
     def _add_snu_hour_limit_constraint(self):
-        """Add 21-hour work limit constraint for SNU participants."""
+        """Add exact 21-hour work requirement for SNU participants."""
         for i, participant in enumerate(self.participants):
             if participant["role"] == "SNU":
                 # Calculate total minutes for SNU participant (21 hours = 1260 minutes)
@@ -168,19 +299,28 @@ class TaskAssignmentPlanner:
                     task_minutes = task["end_time"] - task["start_time"]
                     total_minutes += task_minutes * self.assignments[(i, j)]
 
-                # SNU participants cannot work more than 21 hours (1260 minutes)
-                self.model.Add(total_minutes <= 1260)
+                # SNU participants must work exactly 21 hours (1260 minutes)
+                self.model.Add(total_minutes == 1260)
 
     def _add_workload_balancing_constraints(self):
         """Add constraints to balance workload among participants."""
-        # Equal treatment: all participants should have reasonable number of tasks
-        max_tasks_per_participant = 6  # Reasonable upper limit
-        min_tasks_per_participant = 1  # Everyone should have at least one task
+        # Everyone should have at least one task
+        min_tasks_per_participant = 1
 
         for i in range(len(self.participants)):
+            participant = self.participants[i]
             total_tasks = sum(self.assignments[(i, j)] for j in range(len(self.tasks)))
-            self.model.Add(total_tasks <= max_tasks_per_participant)
-            self.model.Add(total_tasks >= min_tasks_per_participant)
+
+            # Minimum tasks constraint only applies if participant has available tasks
+            available_tasks_count = sum(
+                1
+                for j, task in enumerate(self.tasks)
+                if self._is_participant_available_for_task(participant, task)
+            )
+
+            if available_tasks_count > 0:
+                # Only require minimum tasks if participant has at least one available task
+                self.model.Add(total_tasks >= min_tasks_per_participant)
 
     def _tasks_overlap(self, task1: Dict, task2: Dict) -> bool:
         """Check if two tasks overlap in time."""
@@ -195,7 +335,7 @@ class TaskAssignmentPlanner:
 
     def _set_objective(self):
         """Set optimization objective."""
-        # Equal treatment for all participants (except SNU hour limits)
+        # Equal treatment for all participants (except SNU exact hour requirements)
         objective_terms = []
 
         # Simple objective: maximize total assignments (treat everyone equally)
@@ -239,6 +379,8 @@ class TaskAssignmentPlanner:
                             "participant_role": participant["role"],
                             "task_id": task["task_id"],
                             "task_description": task["description"],
+                            "location": task["location"],
+                            "min_people": task["min_people"],
                             "date": task["date"],
                             "duration": task["duration"],
                             "day": task["day"],
@@ -307,6 +449,8 @@ class TaskAssignmentPlanner:
                 "participant_role",
                 "task_id",
                 "task_description",
+                "location",
+                "min_people",
                 "date",
                 "duration",
                 "day",
@@ -328,7 +472,7 @@ def main():
     # File paths
     tasks_file = "data/tasks.csv"
     participants_file = "data/participants.csv"
-    output_file = "data/assignments.csv"
+    output_file = "output/assignments.csv"
 
     # Check if files exist
     if not os.path.exists(tasks_file):
