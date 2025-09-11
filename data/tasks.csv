@@ -1,33 +1,36 @@
-﻿DATE,DURATION,TASK_ID,TASK_DESC
-10/10/2025,16H00-19H00,FRI1,"Déchargement voitures et installation"
-10/10/2025,19H30-21H00,FRI2,"Accueil public"
-10/10/2025,19H30-21H00,FRI3,"surveillance couloir"
-10/10/2025,19H30-21H00,FRI4,"ouverture guichet"
-10/10/2025,19H30-21H00,FRI5,"contrôle des billets"
-10/10/2025,20H30-21H30,FRI6,"CONCERT D'OUVERTURE - O Virgo Splendens (LA CAMERATA CHIARA - Peter Chorkov, Grégoire Franco, Noémie Murach)"
-11/10/2025,8H00-10H00,SAT1,"MASTER-CLASSE de Flûte à bec avec Han TOL (Salle Malgoire)"
-11/10/2025,10H15-10H45,SAT2,"RENCONTRE et ÉCHANGE avec Alain Wetterwald (Luthier - créateur des Zither)"
-11/10/2025,10H45-12H15,SAT3,"ATELIER d'ENSEMBLE sous direction Grégoire FRANCO et Peter CHORKOV"
-11/10/2025,11H00-11H30,SAT4,"Concertini gratuits - scènes ouvertes"
-11/10/2025,12H00-14H00,SAT5,"Gestion public pour la Restauration"
-11/10/2025,12H00-14H00,SAT6,"surveillance des couloirs et du flux"
-11/10/2025,14H30-15H30,SAT7,"CONCERT Triplex (LATERNA MAGICA - Nathalie Houtman, Laura Pok, Jean Van Vyve)"
-11/10/2025,16H00-17H00,SAT8,"MASTER-CLASSE de Flûte à bec avec Frédéric de ROOS"
-11/10/2025,16H00-17H00,SAT9,"ATELIER de DÉCOUVERTE de la Flûte à bec (Chapelle Saint-Stanislas)"
-11/10/2025,17H10-18H10,SAT10,"ENTRETIEN EXCEPTIONNEL avec Frédéric de ROOS et Han TOL"
-11/10/2025,18H30-19H45,SAT11,"CONCERT Eloquenza e virtuosità! (LES ALIZÉS - Clémence Comte, Michel Coppé, Parsival Castro)"
-11/10/2025,13H30-20H30,SAT12,"Gestion de la sortie du public"
-11/10/2025,20H30-22H30,SAT13,"Accueil invités cocktail dînatoire"
-11/10/2025,13H30-20H30,SAT14,"Gestion sortie invités"
-12/10/2025,8H00-10H00,SUN1,"MASTER-CLASSE de Flûte à bec avec Frédéric de ROOS"
-12/10/2025,9H30-11H00,SUN2,"ATELIER d'ENSEMBLE sous direction Grégoire FRANCO et Peter CHORKOV"
-12/10/2025,10H15-10H45,SUN3,"Concertini gratuits - scènes ouvertes"
-12/10/2025,11H30-12H30,SUN4,"SPECTACLE de MARIONNETTES MUSICAL La Belle au Bois dormant (L'AIR du TEMPS - Rachel Heymans, Ayelet Karni, Igor Mamlenkov)"
-12/10/2025,12H00-14H00,SUN5,"Gestion public pour la Restauration"
-12/10/2025,12H00-14H00,SUN6,"surveillance des couloirs et du flux"
-12/10/2025,14H30-15H30,SUN7,"RENCONTRE DOCUMENTAIRE - SPARK OF MUSIC (Nicole Decourrière)"
-12/10/2025,16H30-17H30,SUN8,"CONCERT Japanistan (JAPANISTAN TRIO - Jean-François Suizan Lagrost, Kengo Saito, Ershad Teherani)"
-12/10/2025,18H00-19H00,SUN9,"ATELIER de DÉCOUVERTE de la Flûte à bec"
-12/10/2025,18H00-19H00,SUN10,"MASTER-CLASSE de Flûte à bec avec Han TOL (Salle Malgoire)"
-12/10/2025,18H00-21H00,SUN11,"Désinstallation et Rangement"
-12/10/2025,18H00-21H00,SUN12,"Transport du matériel"
+﻿DATE;DURATION;TASK_ID;TASK_DESC;LOCATION;MINIMUM_NUMBER_OF_PEOPLE;MAXIMUM_NUMBER_OF_PEOPLE
+10/10/2025;16H00-19H00;FRI1;Déchargement voitures et installation;Entree;8;16
+10/10/2025;19H30-21H00;FRI2;Accueil public;Entree;2;3
+10/10/2025;19H30-21H00;FRI3;surveillance couloir;RDC,ETAGE1;1;2
+10/10/2025;19H30-21H00;FRI4;ouverture guichet;ETAGE1;1;2
+10/10/2025;19H30-21H00;FRI5;contrôle des billets;BILLETTERIE;2;3
+10/10/2025;19H30-21H00;FRI5;contrôle des billets;PORTAIL_DES_PROFS;1;2
+10/10/2025;20H30-21H30;FRI6;CONCERT D'OUVERTURE - O Virgo Splendens (LA CAMERATA CHIARA - Peter Chorkov, Grégoire Franco, Noémie Murach) + Vente;CHAPELLE;2;4
+11/10/2025;8H00-10H00;SAT1;MASTER-CLASSE de Flûte à bec avec Han TOL (Salle Malgoire) + Vente;MALGOIRE;2;4
+11/10/2025;10H15-10H45;SAT2;RENCONTRE et ÉCHANGE avec Alain Wetterwald (Luthier - créateur des Zither) + Vente;QUANTZ;2;4
+11/10/2025;10H45-12H15;SAT3;ATELIER d'ENSEMBLE sous direction Grégoire FRANCO et Peter CHORKOV + Vente;MALGOIRE;2;4
+11/10/2025;11H00-11H30;SAT4;Concertini gratuits - scènes ouvertes + Vente;TELEMANN;2;4
+11/10/2025;12H00-14H00;SAT5;Gestion public pour la Restauration;RESTAURANT;4;5
+11/10/2025;12H00-14H00;SAT6;surveillance des couloirs et du flux;RDC,ETAGE1;1;3
+11/10/2025;14H30-15H30;SAT7;CONCERT Triplex (LATERNA MAGICA - Nathalie Houtman, Laura Pok, Jean Van Vyve);CHAPELLE;2;4
+11/10/2025;16H00-17H00;SAT8;MASTER-CLASSE de Flûte à bec avec Frédéric de ROOS;BACH;2;4
+11/10/2025;16H00-17H00;SAT9;ATELIER de DÉCOUVERTE de la Flûte à bec;QUANTZ;2;4
+11/10/2025;17H10-18H10;SAT10;ENTRETIEN EXCEPTIONNEL avec Frédéric de ROOS et Han TOL;BACH;2;4
+11/10/2025;18H30-19H45;SAT11;CONCERT Eloquenza e virtuosità! (LES ALIZÉS - Clémence Comte, Michel Coppé, Parsival Castro);CHAPELLE;2;4
+11/10/2025;13H30-20H30;SAT12;Gestion de la sortie du public;;4;7
+11/10/2025;20H30-22H30;SAT13;Accueil invités cocktail dînatoire;RESTAURANT;4;7
+11/10/2025;20H30-22H30;SAT14;Gestion sortie invités;RDC,RESTAURANT;4;7
+11/10/2025;8H30-20H30;SAT15;Caisse;CAISSE;2;4
+12/10/2025;8H00-10H00;SUN1;MASTER-CLASSE de Flûte à bec avec Frédéric de ROOS;BACH;2;4
+12/10/2025;9H30-11H00;SUN2;ATELIER d'ENSEMBLE sous direction Grégoire FRANCO et Peter CHORKOV;QUANTZ;2;4
+12/10/2025;10H15-10H45;SUN3;Concertini gratuits - scènes ouvertes;TELEMANN;1;2
+12/10/2025;11H30-12H30;SUN4;SPECTACLE de MARIONNETTES MUSICAL La Belle au Bois dormant (L'AIR du TEMPS - Rachel Heymans, Ayelet Karni, Igor Mamlenkov);MALGOIRE;3;5
+12/10/2025;12H00-14H00;SUN5;Gestion public pour la Restauration;RESTAURANT;4;7
+12/10/2025;12H00-14H00;SUN6;surveillance des couloirs et du flux;RDC,ETAGE1;1;3
+12/10/2025;14H30-15H30;SUN7;RENCONTRE DOCUMENTAIRE - SPARK OF MUSIC (Nicole Decourrière);BACH;2;4
+12/10/2025;16H30-17H30;SUN8;CONCERT Japanistan (JAPANISTAN TRIO - Jean-François Suizan Lagrost, Kengo Saito, Ershad Teherani);CHAPELLE;2;4
+12/10/2025;18H00-19H00;SUN9;ATELIER de DÉCOUVERTE de la Flûte à bec;QUANTZ;1;3
+12/10/2025;18H00-19H00;SUN10;MASTER-CLASSE de Flûte à bec avec Han TOL;BACH;1;3
+12/10/2025;18H00-21H00;SUN11;Désinstallation et Rangement;;6;16
+12/10/2025;18H00-21H00;SUN12;Transport du matériel;;6;16
+12/10/2025;8H30-18H00;SUN13;Caisse;CAISSE;2;4

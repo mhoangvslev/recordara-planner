@@ -244,14 +244,11 @@ class TestTaskAssignmentPlanner(unittest.TestCase):
             len(role_stats) > 0, "No role-based statistics could be calculated"
         )
 
-    def test_number_of_people(self):
-        """Test that the solution is of good quality."""
+    def test_minimum_people_constraint(self):
+        """Test that each task has at least the minimum required number of people."""
         assignments = self.planner.get_assignments()
 
-        # Basic quality checks
-        self.assertGreater(len(assignments), 0, "No assignments found")
-        
-        # Check that each task has at least the minimum required people
+        # Count assigned people per task
         task_assignments = {}
         for assignment in assignments:
             task_id = assignment["task_id"]
@@ -259,15 +256,135 @@ class TestTaskAssignmentPlanner(unittest.TestCase):
                 task_assignments[task_id] = 0
             task_assignments[task_id] += 1
         
+        # Check that each task meets minimum people requirement
         for task in self.planner.tasks:
             task_id = task["task_id"]
             min_people = task["min_people"]
             assigned_people = task_assignments.get(task_id, 0)
+            
             self.assertGreaterEqual(
                 assigned_people,
                 min_people,
                 f"Task {task_id} requires {min_people} people but only has {assigned_people} assigned"
             )
+            
+            # Print task assignment details for verification
+            print(f"Task {task_id}: {assigned_people}/{min_people} people (min: {min_people})")
+
+    def test_maximum_people_constraint(self):
+        """Test that each task does not exceed the maximum allowed number of people."""
+        assignments = self.planner.get_assignments()
+
+        # Count assigned people per task
+        task_assignments = {}
+        for assignment in assignments:
+            task_id = assignment["task_id"]
+            if task_id not in task_assignments:
+                task_assignments[task_id] = 0
+            task_assignments[task_id] += 1
+        
+        # Check that each task doesn't exceed maximum people requirement
+        for task in self.planner.tasks:
+            task_id = task["task_id"]
+            max_people = task["max_people"]
+            assigned_people = task_assignments.get(task_id, 0)
+            
+            if max_people is not None:
+                self.assertLessEqual(
+                    assigned_people,
+                    max_people,
+                    f"Task {task_id} has {assigned_people} people assigned but maximum is {max_people}"
+                )
+                
+                # Print task assignment details for verification
+                print(f"Task {task_id}: {assigned_people}/{max_people} people (max: {max_people})")
+            else:
+                # Print tasks without maximum constraint
+                print(f"Task {task_id}: {assigned_people} people (no max limit)")
+
+    def test_people_constraints_integration(self):
+        """Test that both minimum and maximum people constraints work together."""
+        assignments = self.planner.get_assignments()
+
+        # Count assigned people per task
+        task_assignments = {}
+        for assignment in assignments:
+            task_id = assignment["task_id"]
+            if task_id not in task_assignments:
+                task_assignments[task_id] = 0
+            task_assignments[task_id] += 1
+        
+        # Check that each task satisfies both min and max constraints
+        for task in self.planner.tasks:
+            task_id = task["task_id"]
+            min_people = task["min_people"]
+            max_people = task["max_people"]
+            assigned_people = task_assignments.get(task_id, 0)
+            
+            # Check minimum constraint
+            self.assertGreaterEqual(
+                assigned_people,
+                min_people,
+                f"Task {task_id} violates minimum constraint: {assigned_people} < {min_people}"
+            )
+            
+            # Check maximum constraint (if specified)
+            if max_people is not None:
+                self.assertLessEqual(
+                    assigned_people,
+                    max_people,
+                    f"Task {task_id} violates maximum constraint: {assigned_people} > {max_people}"
+                )
+                
+                # Verify that the constraint range is reasonable
+                self.assertLessEqual(
+                    min_people,
+                    max_people,
+                    f"Task {task_id} has invalid constraint range: min={min_people} > max={max_people}"
+                )
+
+    def test_task_data_loading(self):
+        """Test that task data is loaded correctly including max_people field."""
+        # Check that tasks are loaded
+        self.assertGreater(len(self.planner.tasks), 0, "No tasks loaded")
+        
+        # Check that each task has the required fields
+        for task in self.planner.tasks:
+            # Check required fields
+            self.assertIn("task_id", task, "Task missing task_id field")
+            self.assertIn("min_people", task, "Task missing min_people field")
+            self.assertIn("max_people", task, "Task missing max_people field")
+            self.assertIn("description", task, "Task missing description field")
+            self.assertIn("location", task, "Task missing location field")
+            
+            # Check data types
+            self.assertIsInstance(task["min_people"], int, "min_people should be an integer")
+            self.assertTrue(task["min_people"] > 0, "min_people should be positive")
+            
+            # max_people can be None or a positive integer
+            if task["max_people"] is not None:
+                self.assertIsInstance(task["max_people"], int, "max_people should be an integer or None")
+                self.assertTrue(task["max_people"] > 0, "max_people should be positive when specified")
+                
+                # Check that max >= min when both are specified
+                self.assertGreaterEqual(
+                    task["max_people"], 
+                    task["min_people"],
+                    f"Task {task['task_id']}: max_people ({task['max_people']}) should be >= min_people ({task['min_people']})"
+                )
+        
+        # Print some sample task data for verification
+        print("\nSample Task Data:")
+        for i, task in enumerate(self.planner.tasks[:5]):  # Show first 5 tasks
+            max_str = str(task["max_people"]) if task["max_people"] is not None else "None"
+            print(f"  {task['task_id']}: min={task['min_people']}, max={max_str}, location={task['location']}")
+
+    def test_number_of_people(self):
+        """Test that the solution is of good quality."""
+        assignments = self.planner.get_assignments()
+
+        # Basic quality checks
+        self.assertGreater(len(assignments), 0, "No assignments found")
 
         # Check that we have participants from all roles
         participant_roles = {a["participant_role"] for a in assignments}

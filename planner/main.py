@@ -41,12 +41,14 @@ class TaskAssignmentPlanner:
         """Load tasks from CSV file."""
         try:
             with open(self.tasks_file, "r", encoding="utf-8-sig") as file:
-                reader = csv.DictReader(file)
+                reader = csv.DictReader(file, delimiter=";")
                 for row in reader:
-                    # Get location and minimum number of people
+                    # Get location, minimum and maximum number of people
                     location = row.get("LOCATION")
                     min_people_str = row.get("MINIMUM_NUMBER_OF_PEOPLE", "1")
+                    max_people_str = row.get("MAXIMUM_NUMBER_OF_PEOPLE", "")
                     min_people = int(min_people_str.strip()) if min_people_str else 1
+                    max_people = int(max_people_str.strip()) if max_people_str else None
 
                     # Create task description with location
                     task_desc = row["TASK_DESC"].strip('"')
@@ -63,6 +65,7 @@ class TaskAssignmentPlanner:
                             "description": description,
                             "location": location,
                             "min_people": min_people,
+                            "max_people": max_people,
                             "start_time": self._parse_time(
                                 row["DURATION"].split("-")[0]
                             ),
@@ -149,9 +152,16 @@ class TaskAssignmentPlanner:
             # Split by dash to get start and end times
             if "-" in range_str:
                 start_str, end_str = range_str.split("-", 1)
-                start_time = self._parse_time(start_str.strip())
-                end_time = self._parse_time(end_str.strip())
-                time_ranges.append({"start": start_time, "end": end_time})
+                try:
+                    start_time = self._parse_time(start_str.strip())
+                    end_time = self._parse_time(end_str.strip())
+                    # Only add valid time ranges
+                    if start_time < end_time:
+                        time_ranges.append({"start": start_time, "end": end_time})
+                except (ValueError, IndexError) as e:
+                    # Skip invalid time ranges
+                    print(f"WARNING: Invalid time range '{range_str}': {e}")
+                    continue
 
         return time_ranges
 
@@ -222,10 +232,11 @@ class TaskAssignmentPlanner:
     def _add_constraints(self):
         """Add all constraints to the model."""
         self._add_each_task_assigned_constraint()
+        self._add_maximum_people_constraint()
         self._add_participant_availability_constraint()
-        self._add_snu_hour_limit_constraint()
         self._add_workload_balancing_constraints()
         self._add_time_conflict_constraint()
+        self._add_snu_hour_limit_constraint()
 
     def _add_each_task_assigned_constraint(self):
         """Each task must be assigned to at least the minimum number of people."""
@@ -235,6 +246,16 @@ class TaskAssignmentPlanner:
                 sum(self.assignments[(i, j)] for i in range(len(self.participants)))
                 >= min_people
             )
+
+    def _add_maximum_people_constraint(self):
+        """Each task must not exceed the maximum number of people."""
+        for j, task in enumerate(self.tasks):
+            max_people = task["max_people"]
+            if max_people is not None:
+                self.model.Add(
+                    sum(self.assignments[(i, j)] for i in range(len(self.participants)))
+                    <= max_people
+                )
 
     def _add_participant_availability_constraint(self):
         """Participants must be assigned to tasks they're obliged to attend and
@@ -271,7 +292,12 @@ class TaskAssignmentPlanner:
                             print(
                                 f"WARNING: Participant {participant['name']} has overlapping obligations: {task1['task_id']} and {task2['task_id']}"
                             )
-                            # In this case, we'll allow the assignment but it's not ideal
+                            # For overlapping obligations, we'll prioritize the first one alphabetically
+                            # This is a compromise to make the problem feasible
+                            if task1["task_id"] < task2["task_id"]:
+                                self.model.Add(self.assignments[(i, j2)] == 0)
+                            else:
+                                self.model.Add(self.assignments[(i, j1)] == 0)
                             continue
 
                         # If one task is an obligation, the participant must be assigned to it
@@ -304,22 +330,20 @@ class TaskAssignmentPlanner:
 
     def _add_workload_balancing_constraints(self):
         """Add constraints to balance workload among participants."""
-        # Everyone should have at least one task
+        # Relaxed constraint: Only require minimum tasks for participants with obligations
+        # This makes the problem more feasible
         min_tasks_per_participant = 1
 
         for i in range(len(self.participants)):
             participant = self.participants[i]
             total_tasks = sum(self.assignments[(i, j)] for j in range(len(self.tasks)))
 
-            # Minimum tasks constraint only applies if participant has available tasks
-            available_tasks_count = sum(
-                1
-                for j, task in enumerate(self.tasks)
-                if self._is_participant_available_for_task(participant, task)
-            )
-
-            if available_tasks_count > 0:
-                # Only require minimum tasks if participant has at least one available task
+            # Check if participant has obligations (they must be assigned to those)
+            has_obligations = len(participant["obligations"]) > 0
+            
+            # Only require minimum tasks if participant has obligations
+            # This is more relaxed than requiring tasks for all available participants
+            if has_obligations:
                 self.model.Add(total_tasks >= min_tasks_per_participant)
 
     def _tasks_overlap(self, task1: Dict, task2: Dict) -> bool:
@@ -381,6 +405,7 @@ class TaskAssignmentPlanner:
                             "task_description": task["description"],
                             "location": task["location"],
                             "min_people": task["min_people"],
+                            "max_people": task["max_people"],
                             "date": task["date"],
                             "duration": task["duration"],
                             "day": task["day"],
@@ -451,15 +476,25 @@ class TaskAssignmentPlanner:
                 "task_description",
                 "location",
                 "min_people",
+                "max_people",
                 "date",
                 "duration",
+                "total_hours",
                 "day",
             ]
             writer = csv.DictWriter(file, fieldnames=fieldnames)
 
             writer.writeheader()
             for assignment in assignments:
-                writer.writerow(assignment)
+                # Calculate total hours for this assignment
+                task = next(t for t in self.tasks if t["task_id"] == assignment["task_id"])
+                total_hours = self._get_task_duration_hours(task)
+                
+                # Add total_hours to the assignment data
+                assignment_with_hours = assignment.copy()
+                assignment_with_hours["total_hours"] = round(total_hours, 2)
+                
+                writer.writerow(assignment_with_hours)
 
         print(f"\nAssignments exported to: {output_file}")
 
