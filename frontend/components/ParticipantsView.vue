@@ -138,6 +138,12 @@
       </div>
     </div>
 
+    <!-- Export Timetables Section -->
+    <ExportTimetable 
+      :selected-participants="selectedParticipants" 
+      :participants="participants" 
+    />
+
     <!-- Workload Distribution Box Plot -->
     <WorkloadBoxPlot :participants="participants" />
 
@@ -157,6 +163,7 @@ import { ref, computed, watch } from 'vue'
 import { useAssignments } from '~/composables/useAssignments'
 import GanttChart from '~/components/GanttChart.vue'
 import WorkloadBoxPlot from '~/components/WorkloadBoxPlot.vue'
+import ExportTimetable from '~/components/ExportTimetable.vue'
 import {
   UserIcon,
   ClipboardDocumentListIcon,

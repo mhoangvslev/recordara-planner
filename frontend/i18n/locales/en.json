@@ -95,5 +95,24 @@
         "orClickToSelect": "or click to select a file",
         "supportedFormat": "CSV files only",
         "processing": "Processing file..."
+    },
+    "export": {
+        "title": "Export Participant Timetables",
+        "description": "Export the selected participants' schedules in your preferred format.",
+        "mode": {
+            "label": "Export Mode",
+            "merged": "Merged",
+            "individual": "Individual Files (ZIP)",
+            "mergedDescription": "All participants in a single file",
+            "individualDescription": "Separate file for each participant in a ZIP archive"
+        },
+        "formats": {
+            "txt": "TXT Format",
+            "pdf": "PDF Format",
+            "excel": "Excel Format"
+        },
+        "warning": {
+            "noSelection": "Please select participants to export their timetables."
+        }
     }
 }

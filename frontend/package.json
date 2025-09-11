@@ -19,8 +19,12 @@
     "@infectoone/vue-ganttastic": "^2.3.2",
     "@nuxtjs/i18n": "^10.1.0",
     "@nuxtjs/tailwindcss": "^6.8.4",
+    "any-ascii": "^0.3.3",
     "formidable": "^3.5.4",
+    "jspdf": "^3.0.2",
+    "jszip": "^3.10.1",
     "nuxt-plotly": "^1.0.14",
-    "plotly.js": "^3.1.0"
+    "plotly.js": "^3.1.0",
+    "xlsx": "^0.18.5"
   }
 }

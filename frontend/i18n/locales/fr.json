@@ -96,5 +96,24 @@
         "orClickToSelect": "ou cliquez pour sélectionner un fichier",
         "supportedFormat": "Fichiers CSV uniquement",
         "processing": "Traitement du fichier..."
+    },
+    "export": {
+        "title": "Exporter les Emplois du Temps des Participants",
+        "description": "Exportez les horaires des participants sélectionnés dans votre format préféré.",
+        "mode": {
+            "label": "Mode d'Export",
+            "merged": "Fusionné",
+            "individual": "Fichiers Individuels (ZIP)",
+            "mergedDescription": "Tous les participants dans un seul fichier",
+            "individualDescription": "Fichier séparé pour chaque participant dans une archive ZIP"
+        },
+        "formats": {
+            "txt": "Format TXT",
+            "pdf": "Format PDF",
+            "excel": "Format Excel"
+        },
+        "warning": {
+            "noSelection": "Veuillez sélectionner des participants pour exporter leurs emplois du temps."
+        }
     }
 }
