@@ -1,0 +1,84 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    font-family: 'Inter', system-ui, sans-serif;
+  }
+}
+
+@layer components {
+  .gantt-chart {
+    @apply w-full overflow-x-auto;
+  }
+  
+  .gantt-row {
+    @apply flex items-center border-b border-gray-200 py-2;
+  }
+  
+  .gantt-label {
+    @apply w-48 px-4 text-sm font-medium text-gray-700 flex-shrink-0;
+  }
+  
+  .gantt-timeline {
+    @apply flex-1 relative;
+  }
+  
+  .gantt-bar {
+    @apply absolute h-6 rounded-md flex items-center justify-center text-xs font-medium text-white;
+  }
+  
+  .participant-card {
+    @apply bg-white rounded-lg shadow-sm border border-gray-200 p-4 hover:shadow-md transition-shadow;
+  }
+  
+  .tab-button {
+    @apply px-4 py-2 text-sm font-medium rounded-md transition-colors;
+  }
+  
+  .tab-button.active {
+    @apply bg-blue-100 text-blue-700;
+  }
+  
+  .tab-button.inactive {
+    @apply text-gray-500 hover:text-gray-700 hover:bg-gray-100;
+  }
+}
+
+/* Vue-ganttastic custom styles */
+.g-gantt-chart {
+  @apply border border-gray-200 rounded-lg;
+}
+
+.g-gantt-chart .g-gantt-row {
+  @apply border-b border-gray-100;
+}
+
+.g-gantt-chart .g-gantt-row:hover {
+  @apply bg-gray-50;
+}
+
+.g-gantt-chart .g-gantt-row-label {
+  @apply text-sm font-medium text-gray-700 px-4 py-2;
+}
+
+.g-gantt-chart .g-gantt-bar {
+  @apply cursor-pointer transition-all duration-200;
+}
+
+.g-gantt-chart .g-gantt-bar:hover {
+  @apply shadow-md transform scale-105;
+}
+
+.g-gantt-chart .g-gantt-grid {
+  @apply border-gray-200;
+}
+
+.g-gantt-chart .g-gantt-header {
+  @apply bg-gray-50 border-b border-gray-200;
+}
+
+.g-gantt-chart .g-gantt-header-cell {
+  @apply text-xs font-medium text-gray-600 px-2 py-1;
+}

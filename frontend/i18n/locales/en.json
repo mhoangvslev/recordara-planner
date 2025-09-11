@@ -1,0 +1,98 @@
+{
+    "app": {
+        "title": "Event Planner Visualization",
+        "assignmentsLoaded": "{count} assignments loaded",
+        "dataFromFile": "Data loaded from: {fileName}",
+        "dataFromDefault": "Data loaded from default assignments.csv",
+        "recordCount": "{count} records",
+        "uploadNewFile": "Upload New File"
+    },
+    "navigation": {
+        "participants": "Participants",
+        "tasks": "Tasks"
+    },
+    "participants": {
+        "title": "Select Participants",
+        "search": {
+            "label": "Search Participants",
+            "placeholder": "Search by participant name..."
+        },
+        "workload": {
+            "filter": "Filter by Workload",
+            "low": "Low",
+            "medium": "Medium",
+            "high": "High"
+        },
+        "card": {
+            "workload": "Workload",
+            "tasks": "Tasks",
+            "select": "Select",
+            "deselect": "Deselect"
+        },
+        "summary": {
+            "selected": "of",
+            "totalWorkload": "Total Workload",
+            "averageWorkload": "Average Workload"
+        }
+    },
+    "tasks": {
+        "filters": "Task Filters",
+        "location": {
+            "label": "Location",
+            "all": "All Locations"
+        },
+        "day": {
+            "label": "Day",
+            "all": "All Days",
+            "friday": "Friday (10/10/2025)",
+            "saturday": "Saturday (11/10/2025)",
+            "sunday": "Sunday (12/10/2025)"
+        },
+        "people": {
+            "label": "People Required",
+            "all": "All Sizes",
+            "small": "1-2 people",
+            "medium": "3-5 people",
+            "large": "6+ people"
+        },
+        "card": {
+            "location": "Location",
+            "day": "Day",
+            "peopleRequired": "People Required",
+            "assigned": "Assigned",
+            "workload": "Workload",
+            "assign": "Assign",
+            "unassign": "Unassign"
+        },
+        "noTasks": "No tasks match the current filters",
+        "summary": {
+            "title": "Task Summary",
+            "total": "Total Tasks",
+            "fullyCovered": "Fully Covered",
+            "partiallyCovered": "Partially Covered",
+            "uncovered": "Uncovered"
+        }
+    },
+    "gantt": {
+        "title": "Gantt Chart",
+        "participant": "Participant",
+        "task": "Task",
+        "start": "Start",
+        "end": "End",
+        "duration": "Duration"
+    },
+    "workload": {
+        "title": "Workload Distribution",
+        "participant": "Participant",
+        "workload": "Workload",
+        "tasks": "Tasks"
+    },
+    "upload": {
+        "title": "Upload Assignment Data",
+        "description": "Upload a CSV file containing assignment data to visualize your event planning. The file should include columns for participant, task_id, task_description, date, and duration.",
+        "dropFile": "Drop your CSV file here",
+        "orClickToSelect": "or click to select a file",
+        "supportedFormat": "CSV files only",
+        "processing": "Processing file..."
+    }
+}

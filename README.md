@@ -1,113 +1,66 @@
-# Task Assignment Planner
+# Planner Project
 
-A Python application that uses OR-Tools to optimally assign participants to tasks for a multi-day event, taking into account constraints, role priorities, and workload balancing.
+This project has been reorganized into separate backend and frontend components.
 
-## Features
+## Project Structure
 
-- **Optimal Assignment**: Uses OR-Tools CP-SAT solver to find the best possible task assignments
-- **Constraint Handling**: Respects participant availability constraints and time conflicts
-- **Role-Based Priority**: Prioritizes permanent staff for critical tasks
-- **Workload Balancing**: Distributes tasks fairly among participants
-- **Time Conflict Detection**: Prevents double-booking of participants
-- **CSV Export**: Generates detailed assignment reports
+```
+planner/
+├── backend/           # Python backend
+│   ├── planner/       # Main Python package
+│   ├── tests/         # Python tests
+│   ├── data/          # Input data files (CSV)
+│   ├── output/        # Generated output files
+│   ├── pyproject.toml # Python project configuration
+│   └── poetry.lock    # Python dependencies lock file
+├── frontend/          # Nuxt.js frontend
+│   ├── app.vue        # Main Vue app
+│   ├── components/    # Vue components
+│   ├── assets/        # Static assets
+│   ├── composables/   # Vue composables
+│   ├── plugins/       # Vue plugins
+│   ├── server/        # Nuxt server API
+│   ├── package.json   # Node.js dependencies
+│   └── nuxt.config.ts # Nuxt configuration
+└── README.md          # This file
+```
 
-## Data Structure
+## Backend (Python)
 
-### Tasks CSV (`data/tasks.csv`)
-Contains event tasks with the following columns:
-- `DATE`: Event date (DD/MM/YYYY format)
-- `DURATION`: Time range (e.g., "16H00-19H00")
-- `TASK_ID`: Unique task identifier
-- `TASK_DESC`: Task description
+The backend contains the Python assignment planner logic.
 
-### Participants CSV (`data/participants.csv`)
-Contains participant information with the following columns:
-- `FIRST_NAME`: Participant's first name
-- `LAST_NAME`: Participant's last name
-- `ROLE`: Role type (Permanant, Non-permanant, SNU)
-- `CONSTRAINT_EVENT_IDS`: Comma-separated list of task IDs the participant cannot be assigned to
-
-## Assignment Logic
-
-### Constraints
-1. **Each task must be assigned to exactly one participant**
-2. **Participants cannot be assigned to tasks they're constrained from**
-3. **No time conflicts**: Participants cannot be assigned to overlapping tasks
-4. **SNU hour limits**: SNU volunteers cannot work more than 21 hours
-5. **Workload limits**: Each participant has minimum and maximum task limits
-
-### Optimization Objectives
-1. **Equal Treatment**: All participants are treated equally regardless of role
-2. **Workload Balancing**: Distributes tasks fairly among all participants
-3. **SNU Hour Limit**: SNU volunteers cannot work more than 21 hours total
-
-## Usage
-
-### Prerequisites
+### Setup
 ```bash
-# Install dependencies
-pip install ortools pandas
+cd backend
+poetry install
 ```
 
-### Running the Program
+### Running
 ```bash
-python planner/main.py
+cd backend
+poetry run planner
 ```
 
-### Output
-The program generates:
-1. **Console Output**: Detailed assignment summary organized by day and participant
-2. **CSV Export**: `data/assignments.csv` with all assignment details
+## Frontend (Nuxt.js)
 
-## Example Output
+The frontend provides a web interface for visualizing the assignment data.
 
-```
-Task Assignment Planner
-==================================================
-Solving assignment problem...
-Solution found! Status: OPTIMAL
-Objective value: 7136.0
-
-================================================================================
-TASK ASSIGNMENTS
-================================================================================
-
-Friday (10/10/2025):
---------------------------------------------------
-16H00-19H00     | FRI1   | Minh-Hoang DANG      (Permanant   ) | Déchargement voitures et installation
-19H30-21H00     | FRI2   | Eric FRANCO          (Permanant   ) | Accueil public
-...
+### Setup
+```bash
+cd frontend
+npm install
 ```
 
-## Assignment Results Summary
+### Development
+```bash
+cd frontend
+npm run dev
+```
 
-The program successfully assigns all 32 tasks across 3 days to 22 participants:
+The frontend will be available at http://localhost:3000
 
-- **All Participants**: Treated equally with balanced workload distribution
-- **SNU Volunteers**: Limited to maximum 21 hours of work total
-- **Non-Permanent Staff**: Assigned to various event tasks with balanced workload
-- **Permanent Staff**: Assigned to various tasks with balanced workload
+## Data Flow
 
-### Key Features Demonstrated:
-- ✅ Respects Minh-Hoang DANG's constraints (not assigned to SAT1, SAT8)
-- ✅ All participants treated equally regardless of role
-- ✅ SNU volunteers respect 21-hour work limit (all under 10 hours)
-- ✅ No time conflicts between assignments
-- ✅ Balanced workload distribution across all participants
-- ✅ All tasks assigned to exactly one participant
-
-## Customization
-
-You can modify the assignment logic by adjusting:
-- `max_tasks_per_participant` and `min_tasks_per_participant` in `_add_workload_balancing_constraints()`
-- `critical_tasks` list in `_add_role_based_constraints()`
-- Priority weights in `_set_objective()`
-- Time parsing logic in `_parse_time()` for different time formats
-
-## Technical Details
-
-- **Solver**: OR-Tools CP-SAT (Constraint Programming)
-- **Problem Type**: Binary Integer Programming
-- **Variables**: Binary assignment variables for each (participant, task) pair
-- **Constraints**: Linear constraints for assignment rules
-- **Objective**: Linear combination of role priorities and workload penalties
+1. Python backend processes data from `backend/data/` and generates assignments in `backend/output/`
+2. Frontend reads the generated assignments from `backend/output/assignments.csv`
+3. Frontend displays the data using Gantt charts and other visualizations
