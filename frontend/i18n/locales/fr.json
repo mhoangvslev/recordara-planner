@@ -29,7 +29,8 @@
             "workload": "Charge de Travail",
             "tasks": "Tâches",
             "select": "Voir plus",
-            "deselect": "Voir moins"
+            "deselect": "Voir moins",
+            "total": "total"
         },
         "summary": {
             "selected": "de",

@@ -28,7 +28,8 @@
             "workload": "Workload",
             "tasks": "Tasks",
             "select": "Select",
-            "deselect": "Deselect"
+            "deselect": "Deselect",
+            "total": "total"
         },
         "summary": {
             "selected": "of",

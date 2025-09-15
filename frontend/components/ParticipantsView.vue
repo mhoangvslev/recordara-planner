@@ -83,32 +83,47 @@
           
           <!-- Expanded Task List -->
           <div v-if="expandedParticipants.includes(participant.name)" class="mt-4 pt-4 border-t border-gray-200">
-            <div class="space-y-2">
+            <div class="space-y-4">
               <h4 class="text-sm font-medium text-gray-700 mb-2">{{ $t('participants.card.tasks') }}:</h4>
-              <div v-for="assignment in participant.assignments" :key="`${assignment.task_id}-${assignment.date}`" 
-                   class="bg-gray-50 rounded-md p-3 text-xs">
-                <div class="flex items-start justify-between">
-                  <div class="flex-1">
-                    <p class="font-medium text-gray-900 mb-1">{{ assignment.task_description }}</p>
-                    <div class="space-y-1 text-gray-600">
-                      <div class="flex items-center gap-1">
-                        <CalendarIcon class="h-3 w-3" />
-                        <span>{{ assignment.date }}</span>
+              
+              <!-- Group tasks by day -->
+              <div v-for="dayGroup in getTasksByDay(participant.assignments)" :key="dayGroup.date" class="space-y-2">
+                <!-- Day header with total hours -->
+                <div class="flex items-center justify-between bg-blue-50 rounded-md p-2 border-l-4 border-blue-400">
+                  <div class="flex items-center gap-2">
+                    <CalendarIcon class="h-4 w-4 text-blue-600" />
+                    <span class="text-sm font-medium text-blue-900">{{ dayGroup.date }}</span>
+                  </div>
+                  <div class="flex items-center gap-1">
+                    <ClockIcon class="h-4 w-4 text-blue-600" />
+                    <span class="text-sm font-medium text-blue-900">{{ dayGroup.totalHours }}h {{ $t('participants.card.total') }}</span>
+                  </div>
+                </div>
+                
+                <!-- Tasks for this day -->
+                <div class="space-y-2 ml-4">
+                  <div v-for="assignment in dayGroup.tasks" :key="`${assignment.task_id}-${assignment.date}`" 
+                       class="bg-gray-50 rounded-md p-3 text-xs">
+                    <div class="flex items-start justify-between">
+                      <div class="flex-1">
+                        <p class="font-medium text-gray-900 mb-1">{{ assignment.task_description }}</p>
+                        <div class="space-y-1 text-gray-600">
+                          <div class="flex items-center gap-1">
+                            <ClockIcon class="h-3 w-3" />
+                            <span>{{ assignment.duration }}</span>
+                          </div>
+                          <div class="flex items-center gap-1">
+                            <MapPinIcon class="h-3 w-3" />
+                            <span>{{ assignment.location }}</span>
+                          </div>
+                        </div>
                       </div>
-                      <div class="flex items-center gap-1">
-                        <ClockIcon class="h-3 w-3" />
-                        <span>{{ assignment.duration }}</span>
-                      </div>
-                      <div class="flex items-center gap-1">
-                        <MapPinIcon class="h-3 w-3" />
-                        <span>{{ assignment.location }}</span>
+                      <div class="text-right">
+                        <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                          {{ assignment.total_hours }}h
+                        </span>
                       </div>
                     </div>
-                  </div>
-                  <div class="text-right">
-                    <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                      {{ assignment.total_hours }}h
-                    </span>
                   </div>
                 </div>
               </div>
@@ -274,6 +289,41 @@ const toggleExpanded = (participantName) => {
   } else {
     expandedParticipants.value.push(participantName)
   }
+}
+
+// Group tasks by day and calculate total hours per day
+const getTasksByDay = (assignments) => {
+  const dayGroups = new Map()
+  
+  assignments.forEach(assignment => {
+    const date = assignment.date
+    if (!dayGroups.has(date)) {
+      dayGroups.set(date, {
+        date,
+        tasks: [],
+        totalHours: 0
+      })
+    }
+    
+    const dayGroup = dayGroups.get(date)
+    dayGroup.tasks.push(assignment)
+    dayGroup.totalHours += parseFloat(assignment.total_hours || 0)
+  })
+  
+  // Convert to array and sort by date
+  return Array.from(dayGroups.values())
+    .map(dayGroup => ({
+      ...dayGroup,
+      totalHours: Math.round(dayGroup.totalHours * 10) / 10 // Round to 1 decimal place
+    }))
+    .sort((a, b) => {
+      // Sort by date (assuming date format is DD/MM/YYYY)
+      const [dayA, monthA, yearA] = a.date.split('/')
+      const [dayB, monthB, yearB] = b.date.split('/')
+      const dateA = new Date(parseInt(yearA), parseInt(monthA) - 1, parseInt(dayA))
+      const dateB = new Date(parseInt(yearB), parseInt(monthB) - 1, parseInt(dayB))
+      return dateA - dateB
+    })
 }
 
 // Watch for workload filter changes to update participant selection
