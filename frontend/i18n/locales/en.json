@@ -114,6 +114,29 @@
         },
         "warning": {
             "noSelection": "Please select participants to export their timetables."
+        },
+        "content": {
+            "timetables": "PARTICIPANT TIMETABLES",
+            "participant": "PARTICIPANT",
+            "workload": "WORKLOAD",
+            "totalHours": "TOTAL HOURS",
+            "totalTasks": "TOTAL TASKS",
+            "schedule": "SCHEDULE",
+            "date": "Date",
+            "duration": "Duration",
+            "hours": "Hours",
+            "location": "Location",
+            "noAssignments": "No assignments scheduled.",
+            "summary": "Summary",
+            "taskDescription": "Task Description"
+        },
+        "textExport": {
+            "title": "Text Export Preview",
+            "copy": "Copy to Clipboard",
+            "download": "Download as TXT",
+            "copied": "Copied to clipboard!",
+            "generate": "Generate Text Preview",
+            "individualFile": "Individual File"
         }
     }
 }

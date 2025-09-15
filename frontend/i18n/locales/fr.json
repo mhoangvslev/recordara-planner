@@ -115,6 +115,29 @@
         },
         "warning": {
             "noSelection": "Veuillez sélectionner des participants pour exporter leurs emplois du temps."
+        },
+        "content": {
+            "timetables": "EMPLOIS DU TEMPS DES PARTICIPANTS",
+            "participant": "PARTICIPANT",
+            "workload": "CHARGE DE TRAVAIL",
+            "totalHours": "HEURES TOTALES",
+            "totalTasks": "TÂCHES TOTALES",
+            "schedule": "PLANNING",
+            "date": "Date",
+            "duration": "Durée",
+            "hours": "Heures",
+            "location": "Lieu",
+            "noAssignments": "Aucune affectation programmée.",
+            "summary": "Résumé",
+            "taskDescription": "Description de la Tâche"
+        },
+        "textExport": {
+            "title": "Aperçu de l'Export Texte",
+            "copy": "Copier dans le Presse-papiers",
+            "download": "Télécharger en TXT",
+            "copied": "Copié dans le presse-papiers !",
+            "generate": "Générer l'Aperçu Texte",
+            "individualFile": "Fichier Individuel"
         }
     }
 }

@@ -310,10 +310,12 @@ class TaskAssignmentPlanner:
         self._add_maximum_people_constraint()
         self._add_participant_availability_constraint()
         self._add_workload_balancing_constraints()
-        # Temporarily disable time conflict constraint to test feasibility
-        # self._add_time_conflict_constraint()
-        # Disable workload hour constraints to allow obligations to be fulfilled
-        # self._add_workload_hour_constraints()
+        # Re-enable time conflict constraint to prevent overlapping assignments
+        self._add_time_conflict_constraint()
+        # Re-enable workload hour constraints with daily limits
+        self._add_workload_hour_constraints()
+        # Add daily hour limits for SNU participants
+        self._add_daily_hour_limits()
 
     def _add_each_task_assigned_constraint(self):
         """Each task must be assigned to at least 1 person (relaxed from original minimum)."""
@@ -472,6 +474,10 @@ class TaskAssignmentPlanner:
             elif workload == "Low":
                 # Low workload: maximum 12 hours total (more flexible for obligations)
                 self.model.Add(total_minutes <= 720)  # 12 hours maximum
+            elif workload == "SNU":
+                # SNU participants: maximum 24 hours total (8 hours per day * 3 days)
+                # Daily limits are enforced separately
+                self.model.Add(total_minutes <= 1440)  # 24 hours maximum
             else:
                 # Default: reasonable maximum
                 self.model.Add(total_minutes <= 720)  # 12 hours maximum
@@ -481,6 +487,21 @@ class TaskAssignmentPlanner:
         # Make workload balancing more flexible - no minimum requirements
         # This allows the solver to find feasible solutions more easily
         pass  # No minimum constraints for workload balancing
+
+    def _add_daily_hour_limits(self):
+        """Add daily hour limits for SNU participants only (max 8 hours per day)."""
+        for i, participant in enumerate(self.participants):
+            if participant["workload"] == "SNU":
+                # Add daily hour limits for each day (0=Friday, 1=Saturday, 2=Sunday)
+                for day_num in range(3):
+                    daily_minutes = 0
+                    for j, task in enumerate(self.tasks):
+                        if task["day"] == day_num:
+                            task_minutes = task["end_time"] - task["start_time"]
+                            daily_minutes += task_minutes * self.assignments[(i, j)]
+                    
+                    # SNU participants cannot work more than 8 hours (480 minutes) per day
+                    self.model.Add(daily_minutes <= 480)
 
     def _tasks_overlap(self, task1: Dict, task2: Dict) -> bool:
         """Check if two tasks overlap in time."""

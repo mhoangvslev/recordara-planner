@@ -33,10 +33,10 @@
         </div>
 
         <div class="export-options">
-            <button @click="exportToTxt" :disabled="!hasSelectedParticipants" class="export-button txt-export"
+            <button @click="generateTextContent" :disabled="!hasSelectedParticipants" class="export-button txt-export"
                 :class="{ 'disabled': !hasSelectedParticipants }">
                 <DocumentTextIcon class="h-5 w-5" />
-                <span>{{ $t('export.formats.txt') }}</span>
+                <span>{{ $t('export.textExport.generate') }}</span>
             </button>
 
             <button @click="exportToPdf" :disabled="!hasSelectedParticipants" class="export-button pdf-export"
@@ -52,6 +52,30 @@
             </button>
         </div>
 
+        <!-- Text Export Preview -->
+        <div v-if="showTextPreview" class="text-export-preview">
+            <div class="preview-header">
+                <h4 class="text-md font-semibold text-gray-900 mb-2">
+                    {{ $t('export.textExport.title') }}
+                </h4>
+                <div class="preview-actions">
+                    <button @click="copyToClipboard" class="action-button copy-button"
+                        :class="{ 'success': copySuccess }">
+                        <ClipboardDocumentIcon class="h-4 w-4" />
+                        <span>{{ copySuccess ? $t('export.textExport.copied') : $t('export.textExport.copy') }}</span>
+                    </button>
+                    <button @click="downloadTextFile" class="action-button download-button">
+                        <ArrowDownTrayIcon class="h-4 w-4" />
+                        <span>{{ $t('export.textExport.download') }}</span>
+                    </button>
+                </div>
+            </div>
+            <div class="text-content-container">
+                <textarea v-model="textContent" readonly class="text-content"
+                    :placeholder="$t('export.textExport.title')"></textarea>
+            </div>
+        </div>
+
         <div v-if="!hasSelectedParticipants" class="export-warning">
             <ExclamationTriangleIcon class="h-4 w-4 text-amber-500" />
             <span class="text-sm text-amber-700">{{ $t('export.warning.noSelection') }}</span>
@@ -60,12 +84,15 @@
 </template>
 
 <script setup>
-import { computed, ref } from 'vue'
-import { DocumentTextIcon, DocumentIcon, TableCellsIcon, ExclamationTriangleIcon } from '@heroicons/vue/24/outline'
+import { computed, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
+import { DocumentTextIcon, DocumentIcon, TableCellsIcon, ExclamationTriangleIcon, ClipboardDocumentIcon, ArrowDownTrayIcon } from '@heroicons/vue/24/outline'
 import jsPDF from 'jspdf'
 import * as XLSX from 'xlsx'
 import JSZip from 'jszip'
 import anyAscii from 'any-ascii'
+
+const { t, locale } = useI18n()
 
 const props = defineProps({
     selectedParticipants: {
@@ -79,10 +106,28 @@ const props = defineProps({
 })
 
 const exportMode = ref('merged')
+const textContent = ref('')
+const showTextPreview = ref(false)
+const copySuccess = ref(false)
 
 const hasSelectedParticipants = computed(() => {
     return props.selectedParticipants.length > 0
 })
+
+// Watch for changes in selected participants and update text content automatically
+watch(
+    () => [props.selectedParticipants, exportMode.value, props.participants],
+    () => {
+        if (showTextPreview.value && hasSelectedParticipants.value) {
+            generateTextContent()
+        } else if (!hasSelectedParticipants.value) {
+            // Clear the text preview if no participants are selected
+            textContent.value = ''
+            showTextPreview.value = false
+        }
+    },
+    { deep: true }
+)
 
 const getSelectedParticipantsData = () => {
     return props.participants.filter(p => props.selectedParticipants.includes(p.name))
@@ -91,7 +136,8 @@ const getSelectedParticipantsData = () => {
 const formatDate = (dateString) => {
     if (!dateString) return ''
     const date = new Date(dateString)
-    return date.toLocaleDateString('en-US', {
+    const dateLocale = locale.value === 'fr' ? 'fr-FR' : 'en-US'
+    return date.toLocaleDateString(dateLocale, {
         weekday: 'long',
         year: 'numeric',
         month: 'long',
@@ -105,28 +151,100 @@ const mapToAscii = (text) => {
 }
 
 const generateTxtContent = (participant) => {
-    let content = `PARTICIPANT: ${participant.name.toUpperCase()}\n`
-    content += `WORKLOAD: ${participant.workload}\n`
-    content += `TOTAL HOURS: ${participant.totalHours}h\n`
-    content += `TOTAL TASKS: ${participant.assignments.length}\n`
+    let content = `${t('export.content.participant')}: ${participant.name.toUpperCase()}\n`
+    content += `${t('export.content.workload')}: ${participant.workload}\n`
+    content += `${t('export.content.totalHours')}: ${participant.totalHours}h\n`
+    content += `${t('export.content.totalTasks')}: ${participant.assignments.length}\n`
     content += '-'.repeat(40) + '\n\n'
 
     if (participant.assignments.length > 0) {
-        content += 'SCHEDULE:\n'
+        content += `${t('export.content.schedule')}:\n`
         participant.assignments.forEach((assignment, index) => {
             content += `${index + 1}. ${assignment.task_description}\n`
-            content += `   Date: ${formatDate(assignment.date)}\n`
-            content += `   Duration: ${assignment.duration}\n`
-            content += `   Hours: ${assignment.total_hours}h\n`
+            content += `   ${t('export.content.date')}: ${formatDate(assignment.date)}\n`
+            content += `   ${t('export.content.duration')}: ${assignment.duration}\n`
+            content += `   ${t('export.content.hours')}: ${assignment.total_hours}h\n`
             if (assignment.location) {
-                content += `   Location: ${assignment.location}\n`
+                content += `   ${t('export.content.location')}: ${assignment.location}\n`
             }
             content += '\n'
         })
     } else {
-        content += 'No assignments scheduled.\n'
+        content += `${t('export.content.noAssignments')}\n`
     }
     return content
+}
+
+const generateTextContent = () => {
+    if (!hasSelectedParticipants.value) {
+        textContent.value = ''
+        showTextPreview.value = false
+        return
+    }
+
+    const selectedData = getSelectedParticipantsData()
+
+    if (exportMode.value === 'merged') {
+        // Merged export - single file with all participants
+        let content = `${t('export.content.timetables')}\n`
+        content += '='.repeat(50) + '\n\n'
+
+        selectedData.forEach(participant => {
+            content += generateTxtContent(participant)
+            content += '\n' + '='.repeat(50) + '\n\n'
+        })
+
+        textContent.value = content
+        showTextPreview.value = true
+    } else {
+        // Individual export - show content for each participant
+        let content = `${t('export.content.timetables')}\n`
+        content += '='.repeat(50) + '\n\n'
+
+        selectedData.forEach((participant, index) => {
+            content += `--- ${t('export.textExport.individualFile')} ${index + 1}: ${participant.name} ---\n\n`
+            content += generateTxtContent(participant)
+            content += '\n' + '='.repeat(50) + '\n\n'
+        })
+
+        textContent.value = content
+        showTextPreview.value = true
+    }
+}
+
+const copyToClipboard = async () => {
+    try {
+        await navigator.clipboard.writeText(textContent.value)
+        copySuccess.value = true
+        setTimeout(() => {
+            copySuccess.value = false
+        }, 2000)
+    } catch (err) {
+        console.error('Failed to copy text: ', err)
+        // Fallback for older browsers
+        const textArea = document.createElement('textarea')
+        textArea.value = textContent.value
+        document.body.appendChild(textArea)
+        textArea.select()
+        document.execCommand('copy')
+        document.body.removeChild(textArea)
+        copySuccess.value = true
+        setTimeout(() => {
+            copySuccess.value = false
+        }, 2000)
+    }
+}
+
+const downloadTextFile = () => {
+    const blob = new Blob([textContent.value], { type: 'text/plain;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `participant_timetables_${new Date().toISOString().split('T')[0]}.txt`
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    URL.revokeObjectURL(url)
 }
 
 const exportToTxt = async () => {
@@ -136,7 +254,7 @@ const exportToTxt = async () => {
 
     if (exportMode.value === 'merged') {
         // Merged export - single file with all participants
-        let content = 'PARTICIPANT TIMETABLES\n'
+        let content = `${t('export.content.timetables')}\n`
         content += '='.repeat(50) + '\n\n'
 
         selectedData.forEach(participant => {
@@ -204,22 +322,22 @@ const generatePdfForParticipant = (participant) => {
     // Title
     pdf.setFontSize(16)
     pdf.setFont(undefined, 'bold')
-    yPosition = addText(`PARTICIPANT: ${participant.name.toUpperCase()}`, margin, yPosition)
+    yPosition = addText(`${t('export.content.participant')}: ${participant.name.toUpperCase()}`, margin, yPosition)
 
     // Participant info
     pdf.setFontSize(12)
     pdf.setFont(undefined, 'normal')
     yPosition += 5
-    yPosition = addText(`Workload: ${participant.workload}`, margin, yPosition)
-    yPosition = addText(`Total Hours: ${participant.totalHours}h`, margin, yPosition)
-    yPosition = addText(`Total Tasks: ${participant.assignments.length}`, margin, yPosition)
+    yPosition = addText(`${t('export.content.workload')}: ${participant.workload}`, margin, yPosition)
+    yPosition = addText(`${t('export.content.totalHours')}: ${participant.totalHours}h`, margin, yPosition)
+    yPosition = addText(`${t('export.content.totalTasks')}: ${participant.assignments.length}`, margin, yPosition)
 
     yPosition += 10
 
     // Schedule section
     if (participant.assignments.length > 0) {
         pdf.setFont(undefined, 'bold')
-        yPosition = addText('SCHEDULE:', margin, yPosition)
+        yPosition = addText(`${t('export.content.schedule')}:`, margin, yPosition)
         pdf.setFont(undefined, 'normal')
         yPosition += 5
 
@@ -229,19 +347,19 @@ const generatePdfForParticipant = (participant) => {
             const assignmentText = `${index + 1}. ${assignment.task_description}`
             yPosition = addText(assignmentText, margin, yPosition)
 
-            yPosition = addText(`   Date: ${formatDate(assignment.date)}`, margin, yPosition)
-            yPosition = addText(`   Duration: ${assignment.duration}`, margin, yPosition)
-            yPosition = addText(`   Hours: ${assignment.total_hours}h`, margin, yPosition)
+            yPosition = addText(`   ${t('export.content.date')}: ${formatDate(assignment.date)}`, margin, yPosition)
+            yPosition = addText(`   ${t('export.content.duration')}: ${assignment.duration}`, margin, yPosition)
+            yPosition = addText(`   ${t('export.content.hours')}: ${assignment.total_hours}h`, margin, yPosition)
 
             if (assignment.location) {
-                yPosition = addText(`   Location: ${assignment.location}`, margin, yPosition)
+                yPosition = addText(`   ${t('export.content.location')}: ${assignment.location}`, margin, yPosition)
             }
 
             yPosition += 5
         })
     } else {
         pdf.setFont(undefined, 'italic')
-        yPosition = addText('No assignments scheduled.', margin, yPosition)
+        yPosition = addText(t('export.content.noAssignments'), margin, yPosition)
     }
 
     return pdf
@@ -281,7 +399,7 @@ const exportToPdf = async () => {
         // Add title
         pdf.setFontSize(18)
         pdf.setFont(undefined, 'bold')
-        yPosition = addText('PARTICIPANT TIMETABLES', margin, yPosition)
+        yPosition = addText(t('export.content.timetables'), margin, yPosition)
         yPosition += 20
 
         selectedData.forEach((participant, participantIndex) => {
@@ -293,22 +411,22 @@ const exportToPdf = async () => {
             // Participant title
             pdf.setFontSize(16)
             pdf.setFont(undefined, 'bold')
-            yPosition = addText(`PARTICIPANT: ${participant.name.toUpperCase()}`, margin, yPosition)
+            yPosition = addText(`${t('export.content.participant')}: ${participant.name.toUpperCase()}`, margin, yPosition)
 
             // Participant info
             pdf.setFontSize(12)
             pdf.setFont(undefined, 'normal')
             yPosition += 5
-            yPosition = addText(`Workload: ${participant.workload}`, margin, yPosition)
-            yPosition = addText(`Total Hours: ${participant.totalHours}h`, margin, yPosition)
-            yPosition = addText(`Total Tasks: ${participant.assignments.length}`, margin, yPosition)
+            yPosition = addText(`${t('export.content.workload')}: ${participant.workload}`, margin, yPosition)
+            yPosition = addText(`${t('export.content.totalHours')}: ${participant.totalHours}h`, margin, yPosition)
+            yPosition = addText(`${t('export.content.totalTasks')}: ${participant.assignments.length}`, margin, yPosition)
 
             yPosition += 10
 
             // Schedule section
             if (participant.assignments.length > 0) {
                 pdf.setFont(undefined, 'bold')
-                yPosition = addText('SCHEDULE:', margin, yPosition)
+                yPosition = addText(`${t('export.content.schedule')}:`, margin, yPosition)
                 pdf.setFont(undefined, 'normal')
                 yPosition += 5
 
@@ -318,19 +436,19 @@ const exportToPdf = async () => {
                     const assignmentText = `${index + 1}. ${assignment.task_description}`
                     yPosition = addText(assignmentText, margin, yPosition)
 
-                    yPosition = addText(`   Date: ${formatDate(assignment.date)}`, margin, yPosition)
-                    yPosition = addText(`   Duration: ${assignment.duration}`, margin, yPosition)
-                    yPosition = addText(`   Hours: ${assignment.total_hours}h`, margin, yPosition)
+                    yPosition = addText(`   ${t('export.content.date')}: ${formatDate(assignment.date)}`, margin, yPosition)
+                    yPosition = addText(`   ${t('export.content.duration')}: ${assignment.duration}`, margin, yPosition)
+                    yPosition = addText(`   ${t('export.content.hours')}: ${assignment.total_hours}h`, margin, yPosition)
 
                     if (assignment.location) {
-                        yPosition = addText(`   Location: ${assignment.location}`, margin, yPosition)
+                        yPosition = addText(`   ${t('export.content.location')}: ${assignment.location}`, margin, yPosition)
                     }
 
                     yPosition += 5
                 })
             } else {
                 pdf.setFont(undefined, 'italic')
-                yPosition = addText('No assignments scheduled.', margin, yPosition)
+                yPosition = addText(t('export.content.noAssignments'), margin, yPosition)
             }
         })
 
@@ -370,16 +488,16 @@ const exportToExcel = async () => {
 
         // Create a summary sheet
         const summaryData = [
-            ['Participant', 'Workload', 'Total Hours', 'Total Tasks'],
+            [t('export.content.participant'), t('export.content.workload'), t('export.content.totalHours'), t('export.content.totalTasks')],
             ...selectedData.map(p => [p.name, p.workload, p.totalHours, p.assignments.length])
         ]
         const summarySheet = XLSX.utils.aoa_to_sheet(summaryData)
-        XLSX.utils.book_append_sheet(workbook, summarySheet, 'Summary')
+        XLSX.utils.book_append_sheet(workbook, summarySheet, t('export.content.summary'))
 
         // Create detailed sheets for each participant
         selectedData.forEach(participant => {
             const participantData = [
-                ['Task Description', 'Date', 'Duration', 'Hours', 'Location'],
+                [t('export.content.taskDescription'), t('export.content.date'), t('export.content.duration'), t('export.content.hours'), t('export.content.location')],
                 ...participant.assignments.map(assignment => [
                     assignment.task_description,
                     formatDate(assignment.date),
@@ -405,15 +523,15 @@ const exportToExcel = async () => {
 
             // Create summary sheet for this participant
             const summaryData = [
-                ['Participant', 'Workload', 'Total Hours', 'Total Tasks'],
+                [t('export.content.participant'), t('export.content.workload'), t('export.content.totalHours'), t('export.content.totalTasks')],
                 [participant.name, participant.workload, participant.totalHours, participant.assignments.length]
             ]
             const summarySheet = XLSX.utils.aoa_to_sheet(summaryData)
-            XLSX.utils.book_append_sheet(workbook, summarySheet, 'Summary')
+            XLSX.utils.book_append_sheet(workbook, summarySheet, t('export.content.summary'))
 
             // Create detailed sheet for this participant
             const participantData = [
-                ['Task Description', 'Date', 'Duration', 'Hours', 'Location'],
+                [t('export.content.taskDescription'), t('export.content.date'), t('export.content.duration'), t('export.content.hours'), t('export.content.location')],
                 ...participant.assignments.map(assignment => [
                     assignment.task_description,
                     formatDate(assignment.date),
@@ -424,7 +542,7 @@ const exportToExcel = async () => {
             ]
 
             const participantSheet = XLSX.utils.aoa_to_sheet(participantData)
-            XLSX.utils.book_append_sheet(workbook, participantSheet, 'Schedule')
+            XLSX.utils.book_append_sheet(workbook, participantSheet, t('export.content.schedule'))
 
             // Convert workbook to buffer
             const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' })
@@ -500,5 +618,42 @@ const exportToExcel = async () => {
 
 .export-warning {
     @apply flex items-center gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg;
+}
+
+.text-export-preview {
+    @apply mt-6 bg-gray-50 rounded-lg border border-gray-200 p-4;
+}
+
+.preview-header {
+    @apply flex justify-between items-center mb-4;
+}
+
+.preview-actions {
+    @apply flex gap-2;
+}
+
+.action-button {
+    @apply flex items-center gap-2 px-3 py-2 rounded-md border transition-all duration-200 font-medium text-sm;
+}
+
+.copy-button {
+    @apply bg-blue-50 border-blue-300 text-blue-700 hover:bg-blue-100;
+}
+
+.copy-button.success {
+    @apply bg-green-50 border-green-300 text-green-700;
+}
+
+.download-button {
+    @apply bg-gray-50 border-gray-300 text-gray-700 hover:bg-gray-100;
+}
+
+.text-content-container {
+    @apply relative;
+}
+
+.text-content {
+    @apply w-full h-64 p-3 border border-gray-300 rounded-md bg-white text-sm font-mono resize-none;
+    @apply focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent;
 }
 </style>

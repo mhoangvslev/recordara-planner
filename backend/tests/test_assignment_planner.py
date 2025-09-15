@@ -31,7 +31,7 @@ class TestTaskAssignmentPlanner(unittest.TestCase):
         self.solution_found = self.planner.solve()
 
         if not self.solution_found:
-            self.skipTest("No solution found for the assignment problem")
+            self.fail("No solution found for the assignment problem")
 
     def test_obligations_respected(self):
         """Test that participant obligations are respected."""
@@ -434,10 +434,331 @@ class TestTaskAssignmentPlanner(unittest.TestCase):
             "Not all participant workload levels are represented in assignments",
         )
 
+    def test_snu_daily_hour_limits(self):
+        """Test that SNU participants work no more than 8 hours per day."""
+        assignments = self.planner.get_assignments()
+        
+        # Group assignments by participant and day
+        participant_daily_hours = {}
+        
+        for assignment in assignments:
+            participant = assignment["participant"]
+            day = assignment["day"]
+            hours = assignment["total_hours"]
+            
+            if participant not in participant_daily_hours:
+                participant_daily_hours[participant] = {}
+            if day not in participant_daily_hours[participant]:
+                participant_daily_hours[participant][day] = 0.0
+            
+            participant_daily_hours[participant][day] += hours
+        
+        # Check SNU participants specifically
+        snu_participants = [p for p in self.planner.participants if p["workload"] == "SNU"]
+        
+        for snu_participant in snu_participants:
+            participant_name = snu_participant["name"]
+            
+            if participant_name in participant_daily_hours:
+                for day_num, daily_hours in participant_daily_hours[participant_name].items():
+                    day_names = ["Friday", "Saturday", "Sunday"]
+                    day_name = day_names[day_num]
+                    
+                    self.assertLessEqual(
+                        daily_hours, 8.0,
+                        f"SNU participant {participant_name} works {daily_hours:.2f} hours on {day_name}, "
+                        f"which exceeds the 8-hour daily limit"
+                    )
+                    
+                    print(f"✓ {participant_name} ({day_name}): {daily_hours:.2f} hours")
+        
+        # Verify that non-SNU participants can work more than 8 hours per day if needed
+        non_snu_participants = [p for p in self.planner.participants if p["workload"] != "SNU"]
+        
+        for non_snu_participant in non_snu_participants:
+            participant_name = non_snu_participant["name"]
+            workload = non_snu_participant["workload"]
+            
+            if participant_name in participant_daily_hours:
+                for day_num, daily_hours in participant_daily_hours[participant_name].items():
+                    day_names = ["Friday", "Saturday", "Sunday"]
+                    day_name = day_names[day_num]
+                    
+                    # Non-SNU participants are allowed to work more than 8 hours per day
+                    # This test just documents this behavior
+                    if daily_hours > 8.0:
+                        print(f"ℹ {participant_name} ({workload}, {day_name}): {daily_hours:.2f} hours (allowed for non-SNU)")
+
+    def test_time_conflicts_prevented(self):
+        """Test that no participant is assigned to overlapping tasks."""
+        assignments = self.planner.get_assignments()
+        
+        # Group assignments by participant and day
+        participant_schedule = {}
+        
+        for assignment in assignments:
+            participant = assignment["participant"]
+            day = assignment["day"]
+            task_id = assignment["task_id"]
+            duration = assignment["duration"]
+            
+            if participant not in participant_schedule:
+                participant_schedule[participant] = {}
+            if day not in participant_schedule[participant]:
+                participant_schedule[participant][day] = []
+            
+            # Parse duration to get start and end times
+            start_str, end_str = duration.split('-')
+            start_minutes = self._parse_time_to_minutes(start_str)
+            end_minutes = self._parse_time_to_minutes(end_str)
+            
+            participant_schedule[participant][day].append({
+                'task_id': task_id,
+                'start': start_minutes,
+                'end': end_minutes,
+                'duration': duration
+            })
+        
+        # Check for overlaps
+        conflicts = []
+        for participant, days in participant_schedule.items():
+            for day, tasks in days.items():
+                # Sort tasks by start time
+                tasks.sort(key=lambda x: x['start'])
+                
+                for i in range(len(tasks)):
+                    for j in range(i + 1, len(tasks)):
+                        task1 = tasks[i]
+                        task2 = tasks[j]
+                        
+                        # Check if tasks overlap
+                        if self._tasks_overlap(task1['start'], task1['end'], task2['start'], task2['end']):
+                            conflicts.append({
+                                'participant': participant,
+                                'day': day,
+                                'task1': task1,
+                                'task2': task2
+                            })
+        
+        # Assert no conflicts found
+        self.assertEqual(
+            len(conflicts), 0,
+            f"Found {len(conflicts)} time conflicts. Participants cannot work overlapping tasks."
+        )
+        
+        if conflicts:
+            print("\nTime conflicts found:")
+            for conflict in conflicts:
+                day_names = ["Friday", "Saturday", "Sunday"]
+                print(f"  {conflict['participant']} on {day_names[conflict['day']]}:")
+                print(f"    {conflict['task1']['task_id']} ({conflict['task1']['duration']}) overlaps with {conflict['task2']['task_id']} ({conflict['task2']['duration']})")
+        else:
+            print("✓ No time conflicts found - all assignments are feasible")
+
+    def _parse_time_to_minutes(self, time_str):
+        """Helper method to parse time string to minutes from midnight."""
+        time_str = time_str.strip()
+        if "H" in time_str.upper():
+            hour = int(time_str.split("H")[0].split("h")[0])
+            minute_part = time_str.split("H")[1] if "H" in time_str else time_str.split("h")[1]
+            minute = int(minute_part) if len(minute_part) > 0 else 0
+        else:
+            parts = time_str.split(":")
+            hour = int(parts[0])
+            minute = int(parts[1])
+        return hour * 60 + minute
+
+    def _tasks_overlap(self, start1, end1, start2, end2):
+        """Helper method to check if two time ranges overlap."""
+        return not (end1 <= start2 or end2 <= start1)
+
+    def _calculate_hours_from_duration(self, duration_str):
+        """Helper method to calculate hours from duration string like '16H00-17H00'."""
+        start_str, end_str = duration_str.split('-')
+        start_minutes = self._parse_time_to_minutes(start_str)
+        end_minutes = self._parse_time_to_minutes(end_str)
+        return (end_minutes - start_minutes) / 60.0
+
+
+class TestSNUAssignmentPlanner(unittest.TestCase):
+    """Test cases specifically for SNU participants with daily hour limits."""
+
+    def setUp(self):
+        """Set up test fixtures for SNU-specific tests."""
+        self.tasks_file = "backend/data/tasks_snu.csv"
+        self.participants_file = "backend/data/participants.csv"
+
+        # Check if test data files exist
+        if not os.path.exists(self.tasks_file):
+            self.skipTest(f"SNU test data file not found: {self.tasks_file}")
+        if not os.path.exists(self.participants_file):
+            self.skipTest(f"Participants file not found: {self.participants_file}")
+
+        # Create planner instance with SNU tasks
+        self.planner = TaskAssignmentPlanner(self.tasks_file, self.participants_file)
+
+        # Solve the assignment problem
+        self.solution_found = self.planner.solve()
+
+        if not self.solution_found:
+            self.fail("No solution found for the SNU assignment problem")
+
+    def test_snu_only_daily_limits(self):
+        """Test that only SNU participants are limited to 8 hours per day."""
+        assignments = self.planner.get_assignments()
+        
+        # Group assignments by participant and day
+        participant_daily_hours = {}
+        
+        for assignment in assignments:
+            participant = assignment["participant"]
+            day = assignment["day"]
+            
+            # Calculate hours from duration string
+            duration = assignment["duration"]
+            hours = self._calculate_hours_from_duration(duration)
+            
+            if participant not in participant_daily_hours:
+                participant_daily_hours[participant] = {}
+            if day not in participant_daily_hours[participant]:
+                participant_daily_hours[participant][day] = 0.0
+            
+            participant_daily_hours[participant][day] += hours
+        
+        # Separate SNU and non-SNU participants
+        snu_participants = [p for p in self.planner.participants if p["workload"] == "SNU"]
+        non_snu_participants = [p for p in self.planner.participants if p["workload"] != "SNU"]
+        
+        print("\n=== SNU Daily Hour Limits Test ===")
+        
+        # Test SNU participants (should be limited to 8 hours per day)
+        snu_violations = []
+        for snu_participant in snu_participants:
+            participant_name = snu_participant["name"]
+            
+            if participant_name in participant_daily_hours:
+                for day_num, daily_hours in participant_daily_hours[participant_name].items():
+                    day_names = ["Friday", "Saturday", "Sunday"]
+                    day_name = day_names[day_num]
+                    
+                    if daily_hours > 8.0:
+                        snu_violations.append({
+                            'participant': participant_name,
+                            'day': day_name,
+                            'hours': daily_hours
+                        })
+                    else:
+                        print(f"✓ SNU {participant_name} ({day_name}): {daily_hours:.2f} hours")
+        
+        # Assert no SNU violations
+        self.assertEqual(
+            len(snu_violations), 0,
+            f"SNU participants violated 8-hour daily limit: {snu_violations}"
+        )
+        
+        # Test non-SNU participants (can work more than 8 hours per day)
+        non_snu_over_8_hours = []
+        for non_snu_participant in non_snu_participants:
+            participant_name = non_snu_participant["name"]
+            workload = non_snu_participant["workload"]
+            
+            if participant_name in participant_daily_hours:
+                for day_num, daily_hours in participant_daily_hours[participant_name].items():
+                    day_names = ["Friday", "Saturday", "Sunday"]
+                    day_name = day_names[day_num]
+                    
+                    if daily_hours > 8.0:
+                        non_snu_over_8_hours.append({
+                            'participant': participant_name,
+                            'workload': workload,
+                            'day': day_name,
+                            'hours': daily_hours
+                        })
+                        print(f"ℹ Non-SNU {participant_name} ({workload}, {day_name}): {daily_hours:.2f} hours (allowed)")
+                    else:
+                        print(f"✓ Non-SNU {participant_name} ({workload}, {day_name}): {daily_hours:.2f} hours")
+        
+        # Document that non-SNU participants can work more than 8 hours
+        if non_snu_over_8_hours:
+            print(f"\nNote: {len(non_snu_over_8_hours)} non-SNU participants work more than 8 hours per day (this is allowed)")
+        else:
+            print("\nNote: All non-SNU participants work 8 hours or less per day")
+
+    def test_snu_participants_exist(self):
+        """Test that SNU participants are present in the data."""
+        snu_participants = [p for p in self.planner.participants if p["workload"] == "SNU"]
+        
+        self.assertGreater(
+            len(snu_participants), 0,
+            "No SNU participants found in the data"
+        )
+        
+        print(f"\nFound {len(snu_participants)} SNU participants:")
+        for participant in snu_participants:
+            print(f"  - {participant['name']}")
+
+    def test_snu_total_hours_reasonable(self):
+        """Test that SNU participants have reasonable total hours (around 21 hours)."""
+        assignments = self.planner.get_assignments()
+        
+        # Calculate total hours for each SNU participant
+        snu_total_hours = {}
+        for assignment in assignments:
+            if assignment["participant_workload"] == "SNU":
+                participant = assignment["participant"]
+                if participant not in snu_total_hours:
+                    snu_total_hours[participant] = 0.0
+                
+                # Calculate hours from duration string
+                duration = assignment["duration"]
+                hours = self._calculate_hours_from_duration(duration)
+                snu_total_hours[participant] += hours
+        
+        print("\n=== SNU Total Hours ===")
+        for participant, total_hours in snu_total_hours.items():
+            print(f"{participant}: {total_hours:.2f} hours total")
+            
+            # SNU participants should work around 21 hours total (7 hours per day * 3 days)
+            # Allow some flexibility: between 15 and 24 hours
+            self.assertGreaterEqual(
+                total_hours, 15.0,
+                f"SNU participant {participant} works only {total_hours:.2f} hours total, which seems too low"
+            )
+            self.assertLessEqual(
+                total_hours, 24.0,
+                f"SNU participant {participant} works {total_hours:.2f} hours total, which exceeds 8 hours per day * 3 days"
+            )
+
+    def _calculate_hours_from_duration(self, duration_str):
+        """Helper method to calculate hours from duration string like '16H00-17H00'."""
+        start_str, end_str = duration_str.split('-')
+        start_minutes = self._parse_time_to_minutes(start_str)
+        end_minutes = self._parse_time_to_minutes(end_str)
+        return (end_minutes - start_minutes) / 60.0
+
+    def _parse_time_to_minutes(self, time_str):
+        """Helper method to parse time string to minutes from midnight."""
+        time_str = time_str.strip()
+        if "H" in time_str.upper():
+            hour = int(time_str.split("H")[0].split("h")[0])
+            minute_part = time_str.split("H")[1] if "H" in time_str else time_str.split("h")[1]
+            minute = int(minute_part) if len(minute_part) > 0 else 0
+        else:
+            parts = time_str.split(":")
+            hour = int(parts[0])
+            minute = int(parts[1])
+        return hour * 60 + minute
+
 
 if __name__ == "__main__":
-    # Create a test suite
-    test_suite = unittest.TestLoader().loadTestsFromTestCase(TestTaskAssignmentPlanner)
+    # Create test suites for both test classes
+    test_suite = unittest.TestSuite()
+    
+    # Add tests from the main test class
+    test_suite.addTest(unittest.TestLoader().loadTestsFromTestCase(TestTaskAssignmentPlanner))
+    
+    # Add tests from the SNU-specific test class
+    test_suite.addTest(unittest.TestLoader().loadTestsFromTestCase(TestSNUAssignmentPlanner))
 
     # Run the tests with verbose output
     runner = unittest.TextTestRunner(verbosity=2)
