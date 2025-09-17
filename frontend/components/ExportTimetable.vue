@@ -150,6 +150,41 @@ const mapToAscii = (text) => {
     return anyAscii(text)
 }
 
+// Group tasks by day and calculate total hours per day (same logic as ParticipantsView.vue)
+const getTasksByDay = (assignments) => {
+    const dayGroups = new Map()
+    
+    assignments.forEach(assignment => {
+        const date = assignment.date
+        if (!dayGroups.has(date)) {
+            dayGroups.set(date, {
+                date,
+                tasks: [],
+                totalHours: 0
+            })
+        }
+        
+        const dayGroup = dayGroups.get(date)
+        dayGroup.tasks.push(assignment)
+        dayGroup.totalHours += parseFloat(assignment.total_hours || 0)
+    })
+    
+    // Convert to array and sort by date
+    return Array.from(dayGroups.values())
+        .map(dayGroup => ({
+            ...dayGroup,
+            totalHours: Math.round(dayGroup.totalHours * 10) / 10 // Round to 1 decimal place
+        }))
+        .sort((a, b) => {
+            // Sort by date (assuming date format is DD/MM/YYYY)
+            const [dayA, monthA, yearA] = a.date.split('/')
+            const [dayB, monthB, yearB] = b.date.split('/')
+            const dateA = new Date(parseInt(yearA), parseInt(monthA) - 1, parseInt(dayA))
+            const dateB = new Date(parseInt(yearB), parseInt(monthB) - 1, parseInt(dayB))
+            return dateA - dateB
+        })
+}
+
 const generateTxtContent = (participant) => {
     let content = `${t('export.content.participant')}: ${participant.name.toUpperCase()}\n`
     content += `${t('export.content.workload')}: ${participant.workload}\n`
@@ -158,16 +193,31 @@ const generateTxtContent = (participant) => {
     content += '-'.repeat(40) + '\n\n'
 
     if (participant.assignments.length > 0) {
-        content += `${t('export.content.schedule')}:\n`
-        participant.assignments.forEach((assignment, index) => {
-            content += `${index + 1}. ${assignment.task_description}\n`
-            content += `   ${t('export.content.date')}: ${formatDate(assignment.date)}\n`
-            content += `   ${t('export.content.duration')}: ${assignment.duration}\n`
-            content += `   ${t('export.content.hours')}: ${assignment.total_hours}h\n`
-            if (assignment.location) {
-                content += `   ${t('export.content.location')}: ${assignment.location}\n`
+        content += `${t('export.content.schedule')}:\n\n`
+        
+        // Group tasks by day
+        const dayGroups = getTasksByDay(participant.assignments)
+        
+        dayGroups.forEach((dayGroup, dayIndex) => {
+            // Day header with total hours
+            content += `${t('export.content.day')}: ${dayGroup.date}\n`
+            content += `${t('export.content.dailyTotal')}: ${dayGroup.totalHours}h ${t('export.content.total')}\n`
+            content += '-'.repeat(30) + '\n'
+            
+            // Tasks for this day
+            dayGroup.tasks.forEach((assignment, taskIndex) => {
+                content += `  ${taskIndex + 1}. ${assignment.task_description}\n`
+                content += `     ${t('export.content.duration')}: ${assignment.duration}\n`
+                content += `     ${t('export.content.hours')}: ${assignment.total_hours}h\n`
+                if (assignment.location) {
+                    content += `     ${t('export.content.location')}: ${assignment.location}\n`
+                }
+                content += '\n'
+            })
+            
+            if (dayIndex < dayGroups.length - 1) {
+                content += '\n'
             }
-            content += '\n'
         })
     } else {
         content += `${t('export.content.noAssignments')}\n`
@@ -341,21 +391,39 @@ const generatePdfForParticipant = (participant) => {
         pdf.setFont(undefined, 'normal')
         yPosition += 5
 
-        participant.assignments.forEach((assignment, index) => {
-            checkNewPage(30) // Reserve space for assignment details
+        // Group tasks by day
+        const dayGroups = getTasksByDay(participant.assignments)
+        
+        dayGroups.forEach((dayGroup, dayIndex) => {
+            checkNewPage(40) // Reserve space for day header and tasks
+            
+            // Day header with total hours
+            pdf.setFont(undefined, 'bold')
+            yPosition = addText(`${t('export.content.day')}: ${dayGroup.date}`, margin, yPosition)
+            yPosition = addText(`${t('export.content.dailyTotal')}: ${dayGroup.totalHours}h ${t('export.content.total')}`, margin, yPosition)
+            pdf.setFont(undefined, 'normal')
+            yPosition += 3
+            
+            // Tasks for this day
+            dayGroup.tasks.forEach((assignment, taskIndex) => {
+                checkNewPage(25) // Reserve space for assignment details
 
-            const assignmentText = `${index + 1}. ${assignment.task_description}`
-            yPosition = addText(assignmentText, margin, yPosition)
+                const assignmentText = `  ${taskIndex + 1}. ${assignment.task_description}`
+                yPosition = addText(assignmentText, margin, yPosition)
 
-            yPosition = addText(`   ${t('export.content.date')}: ${formatDate(assignment.date)}`, margin, yPosition)
-            yPosition = addText(`   ${t('export.content.duration')}: ${assignment.duration}`, margin, yPosition)
-            yPosition = addText(`   ${t('export.content.hours')}: ${assignment.total_hours}h`, margin, yPosition)
+                yPosition = addText(`     ${t('export.content.duration')}: ${assignment.duration}`, margin, yPosition)
+                yPosition = addText(`     ${t('export.content.hours')}: ${assignment.total_hours}h`, margin, yPosition)
 
-            if (assignment.location) {
-                yPosition = addText(`   ${t('export.content.location')}: ${assignment.location}`, margin, yPosition)
+                if (assignment.location) {
+                    yPosition = addText(`     ${t('export.content.location')}: ${assignment.location}`, margin, yPosition)
+                }
+
+                yPosition += 3
+            })
+            
+            if (dayIndex < dayGroups.length - 1) {
+                yPosition += 5
             }
-
-            yPosition += 5
         })
     } else {
         pdf.setFont(undefined, 'italic')
@@ -430,21 +498,39 @@ const exportToPdf = async () => {
                 pdf.setFont(undefined, 'normal')
                 yPosition += 5
 
-                participant.assignments.forEach((assignment, index) => {
-                    checkNewPage(30) // Reserve space for assignment details
+                // Group tasks by day
+                const dayGroups = getTasksByDay(participant.assignments)
+                
+                dayGroups.forEach((dayGroup, dayIndex) => {
+                    checkNewPage(40) // Reserve space for day header and tasks
+                    
+                    // Day header with total hours
+                    pdf.setFont(undefined, 'bold')
+                    yPosition = addText(`${t('export.content.day')}: ${dayGroup.date}`, margin, yPosition)
+                    yPosition = addText(`${t('export.content.dailyTotal')}: ${dayGroup.totalHours}h ${t('export.content.total')}`, margin, yPosition)
+                    pdf.setFont(undefined, 'normal')
+                    yPosition += 3
+                    
+                    // Tasks for this day
+                    dayGroup.tasks.forEach((assignment, taskIndex) => {
+                        checkNewPage(25) // Reserve space for assignment details
 
-                    const assignmentText = `${index + 1}. ${assignment.task_description}`
-                    yPosition = addText(assignmentText, margin, yPosition)
+                        const assignmentText = `  ${taskIndex + 1}. ${assignment.task_description}`
+                        yPosition = addText(assignmentText, margin, yPosition)
 
-                    yPosition = addText(`   ${t('export.content.date')}: ${formatDate(assignment.date)}`, margin, yPosition)
-                    yPosition = addText(`   ${t('export.content.duration')}: ${assignment.duration}`, margin, yPosition)
-                    yPosition = addText(`   ${t('export.content.hours')}: ${assignment.total_hours}h`, margin, yPosition)
+                        yPosition = addText(`     ${t('export.content.duration')}: ${assignment.duration}`, margin, yPosition)
+                        yPosition = addText(`     ${t('export.content.hours')}: ${assignment.total_hours}h`, margin, yPosition)
 
-                    if (assignment.location) {
-                        yPosition = addText(`   ${t('export.content.location')}: ${assignment.location}`, margin, yPosition)
+                        if (assignment.location) {
+                            yPosition = addText(`     ${t('export.content.location')}: ${assignment.location}`, margin, yPosition)
+                        }
+
+                        yPosition += 3
+                    })
+                    
+                    if (dayIndex < dayGroups.length - 1) {
+                        yPosition += 5
                     }
-
-                    yPosition += 5
                 })
             } else {
                 pdf.setFont(undefined, 'italic')
@@ -494,13 +580,29 @@ const exportToExcel = async () => {
         const summarySheet = XLSX.utils.aoa_to_sheet(summaryData)
         XLSX.utils.book_append_sheet(workbook, summarySheet, t('export.content.summary'))
 
-        // Create detailed sheets for each participant
+        // Create detailed sheets for each participant with daily grouping
         selectedData.forEach(participant => {
+            const dayGroups = getTasksByDay(participant.assignments)
+            
+            // Create a summary sheet for this participant
+            const summaryData = [
+                [t('export.content.day'), t('export.content.dailyTotal'), t('export.content.tasksCount')],
+                ...dayGroups.map(dayGroup => [
+                    dayGroup.date,
+                    `${dayGroup.totalHours}h`,
+                    dayGroup.tasks.length
+                ])
+            ]
+            const summarySheet = XLSX.utils.aoa_to_sheet(summaryData)
+            const summarySheetName = `${mapToAscii(participant.name).replace(/[^a-zA-Z0-9]/g, '').substring(0, 20)}_Summary`
+            XLSX.utils.book_append_sheet(workbook, summarySheet, summarySheetName)
+            
+            // Create detailed sheet for this participant
             const participantData = [
-                [t('export.content.taskDescription'), t('export.content.date'), t('export.content.duration'), t('export.content.hours'), t('export.content.location')],
+                [t('export.content.day'), t('export.content.taskDescription'), t('export.content.duration'), t('export.content.hours'), t('export.content.location')],
                 ...participant.assignments.map(assignment => [
+                    assignment.date,
                     assignment.task_description,
-                    formatDate(assignment.date),
                     assignment.duration,
                     assignment.total_hours,
                     assignment.location || ''
@@ -520,6 +622,7 @@ const exportToExcel = async () => {
 
         for (const participant of selectedData) {
             const workbook = XLSX.utils.book_new()
+            const dayGroups = getTasksByDay(participant.assignments)
 
             // Create summary sheet for this participant
             const summaryData = [
@@ -529,12 +632,24 @@ const exportToExcel = async () => {
             const summarySheet = XLSX.utils.aoa_to_sheet(summaryData)
             XLSX.utils.book_append_sheet(workbook, summarySheet, t('export.content.summary'))
 
+            // Create daily summary sheet
+            const dailySummaryData = [
+                [t('export.content.day'), t('export.content.dailyTotal'), t('export.content.tasksCount')],
+                ...dayGroups.map(dayGroup => [
+                    dayGroup.date,
+                    `${dayGroup.totalHours}h`,
+                    dayGroup.tasks.length
+                ])
+            ]
+            const dailySummarySheet = XLSX.utils.aoa_to_sheet(dailySummaryData)
+            XLSX.utils.book_append_sheet(workbook, dailySummarySheet, t('export.content.dailySummary'))
+
             // Create detailed sheet for this participant
             const participantData = [
-                [t('export.content.taskDescription'), t('export.content.date'), t('export.content.duration'), t('export.content.hours'), t('export.content.location')],
+                [t('export.content.day'), t('export.content.taskDescription'), t('export.content.duration'), t('export.content.hours'), t('export.content.location')],
                 ...participant.assignments.map(assignment => [
+                    assignment.date,
                     assignment.task_description,
-                    formatDate(assignment.date),
                     assignment.duration,
                     assignment.total_hours,
                     assignment.location || ''

@@ -123,12 +123,17 @@
             "totalTasks": "TOTAL TASKS",
             "schedule": "SCHEDULE",
             "date": "Date",
+            "day": "Day",
             "duration": "Duration",
             "hours": "Hours",
             "location": "Location",
             "noAssignments": "No assignments scheduled.",
             "summary": "Summary",
-            "taskDescription": "Task Description"
+            "dailySummary": "Daily Summary",
+            "taskDescription": "Task Description",
+            "dailyTotal": "Daily Total",
+            "tasksCount": "Tasks Count",
+            "total": "total"
         },
         "textExport": {
             "title": "Text Export Preview",

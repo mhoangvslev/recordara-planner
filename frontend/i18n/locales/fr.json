@@ -124,12 +124,17 @@
             "totalTasks": "TÂCHES TOTALES",
             "schedule": "PLANNING",
             "date": "Date",
+            "day": "Jour",
             "duration": "Durée",
             "hours": "Heures",
             "location": "Lieu",
             "noAssignments": "Aucune affectation programmée.",
             "summary": "Résumé",
-            "taskDescription": "Description de la Tâche"
+            "dailySummary": "Résumé Quotidien",
+            "taskDescription": "Description de la Tâche",
+            "dailyTotal": "Total Quotidien",
+            "tasksCount": "Nombre de Tâches",
+            "total": "total"
         },
         "textExport": {
             "title": "Aperçu de l'Export Texte",
